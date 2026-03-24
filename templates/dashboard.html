@@ -19,6 +19,7 @@
             <div>
                 <button id="sync_btn" onclick="syncHLTB()" style="background: #4c6b22; padding: 8px 15px;">⏳ Sync HLTB Times</button>
                 <button id="free_sync_btn" onclick="syncFree()" style="background: #1b6b8a; padding: 8px 15px; margin-left: 8px;">🆓 Sync Free Games</button>
+                <button id="genre_sync_btn" onclick="syncGenres()" style="background: #6b3a8a; padding: 8px 15px; margin-left: 8px;">🎭 Sync Genres</button>
                 <span id="sync_status" style="margin-left: 10px; font-size: 0.8em; color: #888;"></span>
             </div>
         </div>
@@ -27,24 +28,48 @@
         <input type="range" id="live_filter" min="0" max="100" value="1" step="1" style="width: 100%; margin-bottom: 5px;">
         <div style="font-size: 0.75em; color: #888; margin-bottom: 20px;">Raise to include games you've already started. Lower to see only untouched games.</div>
 
+        <label>Search by Name:</label>
+        <input type="text" id="search_filter" placeholder="Type to search..." 
+               style="width: 100%; padding: 8px; margin-top: 5px; margin-bottom: 20px; background: #0e1a24; color: white; border: 1px solid #66c0f4; border-radius: 4px; box-sizing: border-box; font-size: 1em;">
+
         <label>Max Game Length (HLTB): <strong><span id="hltb_val">100</span></strong> Hours</label>
         <input type="range" id="hltb_filter" min="0" max="100" value="100" style="width: 100%;">
 
         <div style="margin-top: 15px;">
             <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                <input type="checkbox" id="hide_free" onchange="filterGames()" style="width: 16px; height: 16px; accent-color: #66c0f4;">
+                <input type="checkbox" id="hide_free" style="width: 16px; height: 16px; accent-color: #66c0f4;">
                 <span>Hide free-to-play games</span>
             </label>
         </div>
 
+        {% if all_genres %}
+        <div style="margin-top: 15px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <label>Filter by Genre:</label>
+                <button onclick="deselectAllGenres()" style="background: none; border: 1px solid #555; color: #888; padding: 3px 10px; border-radius: 4px; font-size: 0.75em; cursor: pointer;">Deselect All</button>
+            </div>
+                {% for genre in all_genres %}
+                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; background: #0e1a24; padding: 4px 10px; border-radius: 20px; border: 1px solid #333; font-size: 0.85em;">
+                    <input type="checkbox" class="genre-checkbox" value="{{ genre }}" style="accent-color: #66c0f4;">
+                    {{ genre }}
+                </label>
+                {% endfor %}
+            </div>
+            <div style="font-size: 0.75em; color: #888; margin-top: 5px;">Check genres to show only those games. Leave all unchecked to show all.</div>
+        </div>
+        {% else %}
+        <div style="margin-top: 15px; color: #888; font-size: 0.85em;">No genre data yet — click 🎭 Sync Genres to fetch them.</div>
+        {% endif %}
+
         <div style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
             <label for="sort_by">Sort By:</label>
-            <select id="sort_by" onchange="sortGames()" style="background: #1b2838; color: white; padding: 8px; border-radius: 4px; border: 1px solid #66c0f4; width: 100%; max-width: 300px;">
+            <select id="sort_by" style="background: #1b2838; color: white; padding: 8px; border-radius: 4px; border: 1px solid #66c0f4; width: 100%; max-width: 300px;">
                 <option value="name">Name (A-Z)</option>
                 <option value="played_asc">Playtime (Low to High)</option>
                 <option value="played_desc">Playtime (High to Low)</option>
                 <option value="hltb_asc">Length (Shortest First)</option>
                 <option value="hltb_desc">Length (Longest First)</option>
+                <option value="value">Quickest to Finish (Shortest Remaining)</option>
             </select>
         </div>
     </div>
@@ -56,6 +81,7 @@
                  data-playtime="{{ (game.playtime_forever / 60) | round(2) }}" 
                  data-hltb="{{ game.hltb_hours or 0 }}"
                  data-free="{{ game.is_free }}"
+                 data-genres="{{ game.genres or '' }}"
                  style="background: #2a475e; padding: 0; border-radius: 8px; width: 250px; border: 1px solid #333; overflow: hidden; transition: transform 0.2s;">
                 
                 <img src="https://cdn.akamai.steamstatic.com/steam/apps/{{ game.appid }}/header.jpg" style="width: 100%;">
@@ -66,7 +92,7 @@
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <span style="font-size: 0.8em; color: #c7d5e0;">Played: {{ (game.playtime_forever / 60) | round(1) }}h</span>
                         <span style="background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 4px; font-size: 0.8em; color: #66c0f4; border: 1px solid #66c0f4;">
-                            ⏱️ {{ game.hltb_hours | round(0) if game.hltb_hours else '--' }}h
+                            ⏱️ {{ game.hltb_hours | round(1) if game.hltb_hours else '--' }}h
                         </span>
                     </div>
                     
@@ -80,6 +106,9 @@
             class="icon-button"
             style="position: fixed; bottom: 30px; right: 30px; border-radius: 50%; width: 65px; height: 65px; font-size: 32px; z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.5); background: #2a475e; border: 2px solid #66c0f4; color: white; cursor: pointer;">
         <span>🗑️</span>
+        <span id="ignored_badge" style="position: absolute; top: -5px; right: -5px; background: #66c0f4; color: #171a21; border-radius: 50%; width: 22px; height: 22px; font-size: 12px; font-weight: bold; display: flex; align-items: center; justify-content: center;">
+            {{ ignored_games | length }}
+        </span>
     </button>
 
     <div id="trash_modal" style="display:none; position: fixed; z-index: 101; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); overflow: auto;">
@@ -112,6 +141,8 @@
             const maxPlayed = parseFloat(liveFilter.value);
             const maxHLTB = parseFloat(hltbFilter.value);
             const hideFree = document.getElementById('hide_free').checked;
+            const searchQuery = document.getElementById('search_filter').value.toLowerCase().trim();
+            const checkedGenres = Array.from(document.querySelectorAll('.genre-checkbox:checked')).map(cb => cb.value);
             
             document.getElementById('range_val').innerText = (maxPlayed >= 100) ? "100+" : maxPlayed;
             document.getElementById('hltb_val').innerText = (maxHLTB >= 100) ? "100+" : maxHLTB;
@@ -127,8 +158,11 @@
                 const matchesPlayed = (maxPlayed >= 100) || (playedHours <= maxPlayed);
                 const matchesHLTB = (maxHLTB >= 100) || (hltbHours === 0 || hltbHours <= maxHLTB);
                 const matchesFree = !hideFree || !isFree;
+                const matchesSearch = searchQuery === '' || card.querySelector('h4').innerText.toLowerCase().includes(searchQuery);
+                const cardGenres = (card.getAttribute('data-genres') || '').split(',').map(g => g.trim());
+                const matchesGenre = checkedGenres.length === 0 || checkedGenres.some(g => cardGenres.includes(g));
 
-                if (matchesPlayed && matchesHLTB && matchesFree) {
+                if (matchesPlayed && matchesHLTB && matchesFree && matchesSearch && matchesGenre) {
                     card.style.display = "block";
                     visibleCount++;
                 } else {
@@ -162,6 +196,15 @@
                     return hltbA - hltbB;
                 } else if (sortBy === 'hltb_desc') {
                     return hltbB - hltbA;
+                } else if (sortBy === 'value') {
+                    // Push games with no HLTB data to the bottom
+                    if (hltbA === 0 && hltbB === 0) return 0;
+                    if (hltbA === 0) return 1;
+                    if (hltbB === 0) return -1;
+                    // Score = remaining hours (hltb - playtime), lower = quicker to finish
+                    const remainingA = Math.max(0, hltbA - playtimeA);
+                    const remainingB = Math.max(0, hltbB - playtimeB);
+                    return remainingA - remainingB;
                 }
             });
 
@@ -169,14 +212,51 @@
             filterGames();
         }
 
+        // --- Save & Restore Filters ---
+        const steamId = "{{ steam_id }}";
+
+        function saveFilters() {
+            localStorage.setItem(`${steamId}_live_filter`, document.getElementById('live_filter').value);
+            localStorage.setItem(`${steamId}_hltb_filter`, document.getElementById('hltb_filter').value);
+            localStorage.setItem(`${steamId}_search`, document.getElementById('search_filter').value);
+            localStorage.setItem(`${steamId}_hide_free`, document.getElementById('hide_free').checked);
+            localStorage.setItem(`${steamId}_sort`, document.getElementById('sort_by').value);
+            const checkedGenres = Array.from(document.querySelectorAll('.genre-checkbox:checked')).map(cb => cb.value);
+            localStorage.setItem(`${steamId}_genres`, JSON.stringify(checkedGenres));
+        }
+
+        function restoreFilters() {
+            const liveVal = localStorage.getItem(`${steamId}_live_filter`);
+            const hltbVal = localStorage.getItem(`${steamId}_hltb_filter`);
+            const search = localStorage.getItem(`${steamId}_search`);
+            const hideFree = localStorage.getItem(`${steamId}_hide_free`);
+            const sort = localStorage.getItem(`${steamId}_sort`);
+            const genres = localStorage.getItem(`${steamId}_genres`);
+
+            if (liveVal !== null) document.getElementById('live_filter').value = liveVal;
+            if (hltbVal !== null) document.getElementById('hltb_filter').value = hltbVal;
+            if (search !== null) document.getElementById('search_filter').value = search;
+            if (hideFree !== null) document.getElementById('hide_free').checked = hideFree === 'true';
+            if (sort !== null) document.getElementById('sort_by').value = sort;
+            if (genres !== null) {
+                const saved = JSON.parse(genres);
+                document.querySelectorAll('.genre-checkbox').forEach(cb => {
+                    cb.checked = saved.includes(cb.value);
+                });
+            }
+        }
+
         // Initialize
         window.onload = function() {
-            filterGames();
-            sortGames(); 
+            restoreFilters();
+            sortGames();
         };
 
-        document.getElementById('live_filter').oninput = filterGames;
-        document.getElementById('hltb_filter').oninput = filterGames;
+        document.getElementById('live_filter').oninput = function() { filterGames(); saveFilters(); };
+        document.getElementById('hltb_filter').oninput = function() { filterGames(); saveFilters(); };
+        document.getElementById('search_filter').oninput = function() { filterGames(); saveFilters(); };
+        document.getElementById('hide_free').onchange = function() { filterGames(); saveFilters(); };
+        document.getElementById('sort_by').onchange = function() { sortGames(); saveFilters(); };
 
         // --- Random Picker ---
         document.getElementById('pick_btn').onclick = function() {
@@ -203,9 +283,11 @@
                 if (res.ok) {
                     const card = button.closest('.game-card');
                     card.classList.remove('selected-game');
-                    card.querySelector('button').outerHTML = `<button onclick="unignoreGame(${appid}, this)" style="background: #4c6b22; width: 100%; margin-top: 10px; padding: 5px;">Restore</button>`;
+                    card.querySelector('button').outerHTML = `<button onclick='unignoreGame(${appid}, this)' style='background: #4c6b22; width: 100%; margin-top: 10px; padding: 5px;'>Restore</button>`;
                     document.getElementById('restoration_list').appendChild(card);
                     filterGames();
+                    const badge = document.getElementById('ignored_badge');
+                    badge.innerText = parseInt(badge.innerText) + 1;
                 }
             });
         }
@@ -214,9 +296,11 @@
             fetch(`/unignore/${appid}`, { method: 'POST' }).then(res => {
                 if (res.ok) {
                     const card = button.closest('.game-card');
-                    card.querySelector('button').outerHTML = `<button onclick="ignoreGame(${appid}, this)" style="background: #a94442; margin-top: 15px; width: 100%; padding: 8px;">🗑️ Ignore</button>`;
+                    card.querySelector('button').outerHTML = `<button onclick='ignoreGame(${appid}, this)' style='background: #a94442; margin-top: 15px; width: 100%; padding: 8px;'>🗑️ Ignore</button>`;
                     document.getElementById('game_container').appendChild(card);
                     filterGames();
+                    const badge = document.getElementById('ignored_badge');
+                    badge.innerText = parseInt(badge.innerText) - 1;
                 }
             });
         }
@@ -258,7 +342,53 @@
                 });
         }
 
-        // --- Free Game Sync ---
+        // Hook genre checkboxes
+        document.querySelectorAll('.genre-checkbox').forEach(cb => {
+            cb.addEventListener('change', () => { filterGames(); saveFilters(); });
+        });
+
+        function deselectAllGenres() {
+            document.querySelectorAll('.genre-checkbox').forEach(cb => cb.checked = false);
+            filterGames();
+            saveFilters();
+        }
+
+        // --- Genre Sync ---
+        function syncGenres() {
+            const btn = document.getElementById('genre_sync_btn');
+            const status = document.getElementById('sync_status');
+            btn.disabled = true;
+            status.innerText = "Starting genre sync...";
+
+            fetch('/sync_genres', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        status.innerText = data.error;
+                        btn.disabled = false;
+                        return;
+                    }
+                    pollGenreSyncStatus();
+                });
+        }
+
+        function pollGenreSyncStatus() {
+            const status = document.getElementById('sync_status');
+            const btn = document.getElementById('genre_sync_btn');
+
+            fetch('/genre_sync_status')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.running) {
+                        status.innerText = `Fetching genres... ${data.updated} / ${data.total} games`;
+                        setTimeout(pollGenreSyncStatus, 2000);
+                    } else {
+                        status.innerText = `Done! Fetched genres for ${data.updated} games.`;
+                        btn.disabled = false;
+                        setTimeout(() => location.reload(), 1500);
+                    }
+                });
+        }
         function syncFree() {
             const btn = document.getElementById('free_sync_btn');
             const status = document.getElementById('sync_status');

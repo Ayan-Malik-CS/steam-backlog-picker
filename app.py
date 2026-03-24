@@ -40,10 +40,17 @@ def show_backlog():
             return redirect(url_for('index'))
 
     games = get_active_games(steam_id)
-
-    # Inside show_backlog function:
     ignored_games = get_ignored_games(steam_id)
-    return render_template('dashboard.html', games=games, ignored_games=ignored_games)
+
+    # Build sorted list of unique genres across all games
+    all_genres = set()
+    for game in games:
+        if game['genres']:
+            for g in game['genres'].split(','):
+                all_genres.add(g.strip())
+    all_genres = sorted(all_genres)
+
+    return render_template('dashboard.html', games=games, ignored_games=ignored_games, steam_id=steam_id, all_genres=all_genres)
 
 @app.route('/ignore/<int:appid>', methods=['POST'])
 def ignore_game(appid):
@@ -175,9 +182,6 @@ def run_free_sync():
     free_sync_status["running"] = False
     print(f"--- Free Sync Complete. Found {updated_count} free games. ---")
 
-    free_sync_status["running"] = False
-    print(f"--- Free Sync Complete. Found {updated_count} free games. ---")
-
 @app.route('/sync_free', methods=['POST'])
 def sync_free():
     if free_sync_status.get("running"):
@@ -189,6 +193,64 @@ def sync_free():
 @app.route('/free_sync_status', methods=['GET'])
 def get_free_sync_status():
     return jsonify(free_sync_status)
+
+genre_sync_status = {"running": False, "updated": 0, "total": 0}
+
+def run_genre_sync():
+    global genre_sync_status
+    genre_sync_status = {"running": True, "updated": 0, "total": 0}
+    print("--- Starting Genre Sync ---")
+
+    conn = get_db_connection()
+    games_to_scan = conn.execute('SELECT DISTINCT appid, name FROM games WHERE genres IS NULL').fetchall()
+    conn.close()
+
+    genre_sync_status["total"] = len(games_to_scan)
+    print(f"Found {len(games_to_scan)} games to check.")
+
+    updated_count = 0
+
+    for game in games_to_scan:
+        appid = game['appid']
+        try:
+            response = requests.get(
+                'https://store.steampowered.com/api/appdetails',
+                params={'appids': appid, 'filters': 'genres'},
+                timeout=10
+            )
+            data = response.json()
+            app_data = data.get(str(appid), {})
+
+            if app_data.get('success'):
+                genre_list = app_data.get('data', {}).get('genres', [])
+                genres = ','.join(g['description'] for g in genre_list) if genre_list else ''
+                conn = get_db_connection()
+                conn.execute('UPDATE games SET genres = ? WHERE appid = ?', (genres, appid))
+                conn.commit()
+                conn.close()
+                updated_count += 1
+                genre_sync_status["updated"] = updated_count
+                print(f"  [OK] {game['name']}: {genres}")
+
+            time.sleep(0.3)
+
+        except Exception as e:
+            print(f"  [ERROR] {game['name']}: {str(e)}")
+
+    genre_sync_status["running"] = False
+    print(f"--- Genre Sync Complete. Updated {updated_count} games. ---")
+
+@app.route('/sync_genres', methods=['POST'])
+def sync_genres():
+    if genre_sync_status.get("running"):
+        return jsonify({"error": "Sync already in progress"}), 409
+    thread = threading.Thread(target=run_genre_sync, daemon=True)
+    thread.start()
+    return jsonify({"success": True, "message": "Sync started"})
+
+@app.route('/genre_sync_status', methods=['GET'])
+def get_genre_sync_status():
+    return jsonify(genre_sync_status)
 
 if __name__ == '__main__':
     # Setting host to 0.0.0.0 makes it accessible on your local network

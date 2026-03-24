@@ -8,5 +8,6 @@ CREATE TABLE IF NOT EXISTS games (
     is_ignored BOOLEAN DEFAULT 0,
     is_free BOOLEAN DEFAULT 0,
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    hltb_hours REAL
+    hltb_hours REAL,
+    genres TEXT
 );
