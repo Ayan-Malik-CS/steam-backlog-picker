@@ -20,9 +20,9 @@ def save_games_to_db(steam_id, games_list):
     now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     for game in games_list:
         conn.execute('''
-            INSERT OR REPLACE INTO games (steam_id, appid, name, playtime_forever, img_icon_url, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (steam_id, game['appid'], game['name'], game['playtime_forever'], game.get('img_icon_url', ''), now))
+            INSERT OR REPLACE INTO games (steam_id, appid, name, playtime_forever, img_icon_url, is_free, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (steam_id, game['appid'], game['name'], game['playtime_forever'], game.get('img_icon_url', ''), 1 if game.get('is_free') else 0, now))
     conn.commit()
     conn.close()
 

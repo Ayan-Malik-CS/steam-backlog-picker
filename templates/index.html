@@ -6,17 +6,6 @@
             <input type="text" name="steam_id_input" placeholder="e.g. GabeLoganNewell" required 
                    style="width: 300px; padding: 12px; font-size: 1.1em;">
             <br><br>
-            <div style="width: 300px; margin: 0 auto; text-align: left;">
-                <label for="hour_limit">Backlog threshold: games played less than <strong><span id="hour_display">1</span> hour</strong></label>
-                <input type="range" id="hour_limit" name="hour_limit" min="1" max="10" value="1" step="1"
-                       style="width: 100%; margin-top: 8px;"
-                       oninput="document.getElementById('hour_display').innerText = this.value">
-                <div style="display: flex; justify-content: space-between; font-size: 0.75em; color: #888;">
-                    <span>1h</span>
-                    <span>10h</span>
-                </div>
-            </div>
-            <br>
             <button type="submit">Analyze My Library</button>
         </form>
     </div>

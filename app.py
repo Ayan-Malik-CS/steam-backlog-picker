@@ -1,12 +1,14 @@
 from flask import Flask, render_template, request, jsonify, session, flash, redirect, url_for
-from steam_api import get_steam_backlog, resolve_vanity_url
-from database import get_active_games, save_games_to_db, get_db_connection, get_ignored_games, is_cache_stale
+from steam_api import get_steam_library, resolve_vanity_url
+from database import get_active_games, save_games_to_db, get_db_connection, get_ignored_games, is_cache_stale, init_db
 from howlongtobeatpy import HowLongToBeat
 import time
 import threading
+import requests
 
 app = Flask(__name__)
 app.secret_key = 'change-this-to-a-random-secret-in-production'
+init_db()
 
 # --- THE HOMEPAGE ---
 @app.route('/')
@@ -17,8 +19,7 @@ def index():
 @app.route('/backlog', methods=['POST'])
 def show_backlog():
     user_input = request.form.get('steam_id_input')
-    hours = int(request.form.get('hour_limit', 1))
-    
+
     if not (user_input.isdigit() and len(user_input) == 17):
         steam_id = resolve_vanity_url(user_input)
     else:
@@ -30,12 +31,9 @@ def show_backlog():
 
     session['steam_id'] = steam_id
 
-    threshold_changed = session.get('hour_limit') != hours
-    session['hour_limit'] = hours
-
-    if is_cache_stale(steam_id) or threshold_changed:
+    if is_cache_stale(steam_id):
         try:
-            steam_games = get_steam_backlog(steam_id, max_minutes=hours * 60)
+            steam_games = get_steam_library(steam_id)
             save_games_to_db(steam_id, steam_games)
         except ConnectionError as e:
             flash(str(e))
@@ -132,6 +130,65 @@ def sync_hltb():
 @app.route('/sync_status', methods=['GET'])
 def get_sync_status():
     return jsonify(sync_status)
+
+free_sync_status = {"running": False, "updated": 0, "total": 0}
+
+def run_free_sync():
+    global free_sync_status
+    free_sync_status = {"running": True, "updated": 0, "total": 0}
+    print("--- Starting Free Game Sync ---")
+
+    conn = get_db_connection()
+    games_to_scan = conn.execute('SELECT DISTINCT appid, name FROM games WHERE is_free = 0').fetchall()
+    conn.close()
+
+    free_sync_status["total"] = len(games_to_scan)
+    print(f"Found {len(games_to_scan)} games to check.")
+
+    updated_count = 0
+
+    for game in games_to_scan:
+        appid = game['appid']
+        try:
+            response = requests.get(
+                'https://store.steampowered.com/api/appdetails',
+                params={'appids': appid, 'filters': 'basic'},
+                timeout=10
+            )
+            data = response.json()
+            app_data = data.get(str(appid), {})
+
+            if app_data.get('success') and app_data.get('data', {}).get('is_free'):
+                conn = get_db_connection()
+                conn.execute('UPDATE games SET is_free = 1 WHERE appid = ?', (appid,))
+                conn.commit()
+                conn.close()
+                updated_count += 1
+                free_sync_status["updated"] = updated_count
+                print(f"  [FREE] {game['name']}")
+
+            time.sleep(0.3)
+
+        except Exception as e:
+            print(f"  [ERROR] {game['name']}: {str(e)}")
+
+    free_sync_status["running"] = False
+    print(f"--- Free Sync Complete. Found {updated_count} free games. ---")
+
+    free_sync_status["running"] = False
+    print(f"--- Free Sync Complete. Found {updated_count} free games. ---")
+
+@app.route('/sync_free', methods=['POST'])
+def sync_free():
+    if free_sync_status.get("running"):
+        return jsonify({"error": "Sync already in progress"}), 409
+    thread = threading.Thread(target=run_free_sync, daemon=True)
+    thread.start()
+    return jsonify({"success": True, "message": "Sync started"})
+
+@app.route('/free_sync_status', methods=['GET'])
+def get_free_sync_status():
+    return jsonify(free_sync_status)
 
 if __name__ == '__main__':
     # Setting host to 0.0.0.0 makes it accessible on your local network

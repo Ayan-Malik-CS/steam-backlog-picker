@@ -5,30 +5,27 @@ from dotenv import load_dotenv
 load_dotenv()
 API_KEY = os.getenv('STEAM_API_KEY')
 
-def get_steam_backlog(steam_id, max_minutes=60):
+def get_steam_library(steam_id):
     url = "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/"
     params = {
         'key': API_KEY,
         'steamid': steam_id,
         'format': 'json',
-        'include_appinfo': 1,             # Using 1 instead of True
-        'include_played_free_games': 1    # Using 1 instead of True
+        'include_appinfo': 1,
+        'include_played_free_games': 1
     }
 
     response = requests.get(url, params=params)
-    
+
     if response.status_code != 200:
         raise ConnectionError(f"Steam API returned status {response.status_code}. Check your API key or try again later.")
 
     data = response.json()
-    games = data.get('response', {}).get('games', [])
 
     if 'response' not in data:
         raise ConnectionError("Steam API returned an unexpected response. The profile may be private.")
-    
-    # Steam returns playtime in minutes. < 60 = less than 1 hour.
-    backlog = [g for g in games if g.get('playtime_forever', 0) <= max_minutes]
-    return backlog
+
+    return data.get('response', {}).get('games', [])
 
 
 def resolve_vanity_url(vanity_name):
