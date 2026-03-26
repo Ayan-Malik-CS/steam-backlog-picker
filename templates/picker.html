@@ -1,0 +1,659 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap');
+
+    .picker-heading {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 3em;
+        letter-spacing: 6px;
+        color: white;
+        text-align: center;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+    }
+
+    .picker-sub {
+        text-align: center;
+        color: #66c0f4;
+        font-family: 'Rajdhani', sans-serif;
+        font-size: 1.1em;
+        letter-spacing: 3px;
+        margin-bottom: 50px;
+        text-transform: uppercase;
+    }
+
+    .mode-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 24px;
+        max-width: 1000px;
+        margin: 0 auto 60px auto;
+    }
+
+    .mode-card {
+        background: linear-gradient(145deg, #1e3a50, #2a475e);
+        border: 1px solid #2e5a7a;
+        border-radius: 12px;
+        padding: 36px 24px;
+        text-align: center;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+        font-family: 'Rajdhani', sans-serif;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .mode-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background: var(--accent);
+        transform: scaleX(0);
+        transition: transform 0.3s;
+    }
+
+    .mode-card:hover::before { transform: scaleX(1); }
+
+    .mode-card:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+        border-color: var(--accent);
+    }
+
+    .mode-icon { font-size: 3.5em; margin-bottom: 16px; display: block; }
+    .mode-title {
+        font-size: 1.6em;
+        font-weight: 700;
+        letter-spacing: 2px;
+        color: white;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+    }
+    .mode-desc { font-size: 0.95em; color: #8ba9bf; line-height: 1.5; }
+    .mode-tag {
+        display: inline-block;
+        margin-top: 16px;
+        padding: 3px 12px;
+        border-radius: 20px;
+        font-size: 0.75em;
+        font-weight: 600;
+        letter-spacing: 1px;
+        background: rgba(255,255,255,0.07);
+        color: var(--accent);
+        border: 1px solid var(--accent);
+        text-transform: uppercase;
+    }
+
+    /* Modal */
+    .picker-modal {
+        display: none;
+        position: fixed;
+        z-index: 200;
+        inset: 0;
+        background: rgba(0,0,0,0.92);
+        overflow: auto;
+    }
+    .picker-modal-inner {
+        background: #0d1b26;
+        margin: 4% auto;
+        padding: 40px;
+        width: 90%;
+        max-width: 700px;
+        border-radius: 16px;
+        border: 1px solid #2e5a7a;
+        position: relative;
+    }
+    .modal-close {
+        position: absolute;
+        top: 16px; right: 20px;
+        font-size: 28px;
+        color: #666;
+        cursor: pointer;
+        background: none;
+        border: none;
+        line-height: 1;
+    }
+    .modal-close:hover { color: white; }
+
+    /* Wheel */
+    #wheel-canvas { display: block; margin: 0 auto; max-width: 100%; }
+    .wheel-spin-btn {
+        display: block;
+        width: 100%;
+        margin-top: 20px;
+        padding: 16px;
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 1.5em;
+        letter-spacing: 4px;
+        background: linear-gradient(to right, #c47af5, #6a1a9a);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+    .wheel-spin-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .wheel-result {
+        text-align: center;
+        margin-top: 20px;
+        font-family: 'Rajdhani', sans-serif;
+        font-size: 1.4em;
+        font-weight: 700;
+        color: #c47af5;
+        letter-spacing: 2px;
+        min-height: 36px;
+    }
+
+    /* Versus */
+    .versus-arena {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        justify-content: center;
+        margin: 24px 0;
+        flex-wrap: wrap;
+    }
+    .versus-card {
+        flex: 1;
+        min-width: 180px;
+        max-width: 240px;
+        background: #1e3a50;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+        font-family: 'Rajdhani', sans-serif;
+    }
+    .versus-card:hover { border-color: #f5c518; transform: scale(1.03); box-shadow: 0 0 20px rgba(245,197,24,0.3); }
+    .versus-card img { width: 100%; display: block; }
+    .versus-card-info { padding: 12px; }
+    .versus-card-info h4 { margin: 0 0 6px 0; font-size: 1em; font-weight: 700; color: white; }
+    .versus-card-info span { font-size: 0.8em; color: #8ba9bf; }
+    .versus-vs {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 3em;
+        color: #f5c518;
+        text-shadow: 0 0 20px rgba(245,197,24,0.5);
+        flex-shrink: 0;
+    }
+    .versus-result {
+        text-align: center;
+        font-family: 'Rajdhani', sans-serif;
+        font-size: 1.3em;
+        font-weight: 700;
+        color: #f5c518;
+        letter-spacing: 2px;
+        min-height: 36px;
+        margin-top: 10px;
+    }
+    .versus-next-btn {
+        display: block;
+        width: 100%;
+        margin-top: 16px;
+        padding: 14px;
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 1.4em;
+        letter-spacing: 3px;
+        background: linear-gradient(to right, #f5c518, #c17f00);
+        color: #0d1b26;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+
+    /* Mystery Box */
+    .mystery-box-area { text-align: center; padding: 20px 0; }
+    .mystery-box-icon {
+        font-size: 8em;
+        cursor: pointer;
+        display: inline-block;
+        transition: transform 0.1s;
+        user-select: none;
+        filter: drop-shadow(0 0 20px rgba(255,165,0,0.4));
+    }
+    .mystery-box-icon:hover { transform: scale(1.05); }
+    .mystery-box-icon.shaking {
+        animation: shake 0.5s ease-in-out infinite;
+    }
+    @keyframes shake {
+        0%, 100% { transform: rotate(0deg); }
+        25% { transform: rotate(-8deg) scale(1.05); }
+        75% { transform: rotate(8deg) scale(1.05); }
+    }
+    .mystery-reveal {
+        margin-top: 24px;
+        background: #1e3a50;
+        border-radius: 12px;
+        overflow: hidden;
+        max-width: 280px;
+        margin-left: auto;
+        margin-right: auto;
+        border: 2px solid #f5a623;
+        display: none;
+        animation: reveal 0.4s ease-out;
+    }
+    @keyframes reveal {
+        from { transform: scale(0.8); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+    .mystery-reveal img { width: 100%; }
+    .mystery-reveal-info { padding: 14px; font-family: 'Rajdhani', sans-serif; }
+    .mystery-reveal-info h3 { margin: 0 0 6px 0; color: white; font-size: 1.2em; }
+    .mystery-reveal-info span { color: #8ba9bf; font-size: 0.9em; }
+    .mystery-hint { color: #f5a623; font-family: 'Rajdhani', sans-serif; font-size: 1.1em; margin-top: 16px; letter-spacing: 1px; }
+    .mystery-btn {
+        display: inline-block;
+        margin-top: 20px;
+        padding: 14px 32px;
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 1.4em;
+        letter-spacing: 3px;
+        background: linear-gradient(to right, #f5a623, #c17f00);
+        color: #0d1b26;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+</style>
+
+<!-- Game data passed from server -->
+<script>
+    const ALL_GAMES = [
+        {% for game in games %}
+        {
+            appid: {{ game.appid }},
+            name: {{ game.name | tojson }},
+            playtime: {{ (game.playtime_forever / 60) | round(1) }},
+            hltb: {{ game.hltb_hours or 0 }},
+            img: "https://cdn.akamai.steamstatic.com/steam/apps/{{ game.appid }}/header.jpg"
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    // Filter to only the games visible in the dashboard when user clicked picker
+    const savedIds = JSON.parse(sessionStorage.getItem('picker_appids') || 'null');
+    const GAMES = savedIds ? ALL_GAMES.filter(g => savedIds.includes(g.appid)) : ALL_GAMES;
+
+    function randomGame() {
+        return GAMES[Math.floor(Math.random() * GAMES.length)];
+    }
+</script>
+
+<div style="text-align: center; margin-bottom: 8px;">
+    <a href="/dashboard" style="color: #66c0f4; font-family: 'Rajdhani', sans-serif; letter-spacing: 2px; text-decoration: none; font-size: 0.9em;">← BACK TO BACKLOG</a>
+</div>
+
+<h1 class="picker-heading">Choose Your Fate</h1>
+<p class="picker-sub" id="picker_count">Loading...</p>
+<script>
+    document.getElementById('picker_count').innerText = `${GAMES.length} games in your filtered backlog — pick your poison`;
+</script>
+
+<div class="mode-grid">
+    <div class="mode-card" style="--accent: #c47af5;" onclick="openModal('wheel')">
+        <span class="mode-icon">🎡</span>
+        <div class="mode-title">Spin the Wheel</div>
+        <div class="mode-desc">Every game gets a slice. Give it a spin and accept whatever fate lands on the arrow.</div>
+        <span class="mode-tag">Classic</span>
+    </div>
+    <div class="mode-card" style="--accent: #f5c518;" onclick="openModal('versus')">
+        <span class="mode-icon">⚔️</span>
+        <div class="mode-title">Versus Mode</div>
+        <div class="mode-desc">Two games go head to head. You pick the winner. Keep going until only one remains.</div>
+        <span class="mode-tag">Strategic</span>
+    </div>
+    <div class="mode-card" style="--accent: #f5a623;" onclick="openModal('mystery')">
+        <span class="mode-icon">🎁</span>
+        <div class="mode-title">Mystery Box</div>
+        <div class="mode-desc">A game is chosen — but hidden. You must commit before the reveal.</div>
+        <span class="mode-tag">Blind Pick</span>
+    </div>
+</div>
+
+<!-- WHEEL MODAL -->
+<div id="modal_wheel" class="picker-modal">
+    <div class="picker-modal-inner" style="max-width: 900px;">
+        <button class="modal-close" onclick="closeModal('wheel')">&times;</button>
+        <h2 style="font-family: 'Bebas Neue', sans-serif; letter-spacing: 4px; color: #c47af5; margin-top: 0;">🎡 Spin the Wheel</h2>
+        <p style="color: #8ba9bf; font-family: 'Rajdhani', sans-serif;" id="wheel_game_count"></p>
+        <div style="position: relative; display: flex; justify-content: center; align-items: center;">
+            <canvas id="wheel-canvas" width="700" height="700" style="max-width: 100%;"></canvas>
+            <div id="wheel_pointer" style="position: absolute; right: calc(50% - 370px); font-size: 2.5em; line-height: 1; filter: drop-shadow(0 0 6px rgba(195,122,245,0.8));">◀</div>
+        </div>
+        <button class="wheel-spin-btn" id="wheel_btn" onclick="spinWheel()">🎡 SPIN THE WHEEL</button>
+        <div id="wheel_result" style="display:none; margin-top: 24px; animation: reveal 0.4s ease-out;">
+            <div style="display: flex; align-items: center; gap: 20px; background: #1e3a50; border: 2px solid #c47af5; border-radius: 12px; padding: 16px; box-shadow: 0 0 30px rgba(196,122,245,0.3);">
+                <img id="wheel_result_img" src="" style="width: 160px; height: 75px; object-fit: cover; border-radius: 8px; flex-shrink: 0;">
+                <div>
+                    <div style="font-family: 'Rajdhani', sans-serif; color: #c47af5; font-size: 0.85em; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;">🎡 You're playing...</div>
+                    <div id="wheel_result_name" style="font-family: 'Bebas Neue', sans-serif; font-size: 1.8em; letter-spacing: 3px; color: white; line-height: 1.1;"></div>
+                    <div id="wheel_result_meta" style="font-family: 'Rajdhani', sans-serif; color: #8ba9bf; font-size: 0.9em; margin-top: 6px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- VERSUS MODAL -->
+<div id="modal_versus" class="picker-modal">
+    <div class="picker-modal-inner">
+        <button class="modal-close" onclick="closeModal('versus')">&times;</button>
+        <h2 style="font-family: 'Bebas Neue', sans-serif; letter-spacing: 4px; color: #f5c518; margin-top: 0;">⚔️ Versus Mode</h2>
+        <p style="color: #8ba9bf; font-family: 'Rajdhani', sans-serif;" id="versus_subtitle">Click the game you'd rather play first.</p>
+        <div class="versus-arena" id="versus_arena"></div>
+        <div class="versus-result" id="versus_result"></div>
+        <button class="versus-next-btn" id="versus_next" onclick="nextVersus()" style="display:none;">NEXT MATCH ⚔️</button>
+    </div>
+</div>
+
+<!-- MYSTERY MODAL -->
+<div id="modal_mystery" class="picker-modal">
+    <div class="picker-modal-inner">
+        <button class="modal-close" onclick="closeModal('mystery')">&times;</button>
+        <h2 style="font-family: 'Bebas Neue', sans-serif; letter-spacing: 4px; color: #f5a623; margin-top: 0;">🎁 Mystery Box</h2>
+        <p style="color: #8ba9bf; font-family: 'Rajdhani', sans-serif;">A game has been chosen. Commit to playing it — then open the box.</p>
+        <div class="mystery-box-area">
+            <div class="mystery-box-icon" id="mystery_box" onclick="revealMystery()">🎁</div>
+            <div class="mystery-hint" id="mystery_hint">Click the box to reveal your game!</div>
+            <div class="mystery-reveal" id="mystery_reveal">
+                <img id="mystery_img" src="" alt="">
+                <div class="mystery-reveal-info">
+                    <h3 id="mystery_name"></h3>
+                    <span id="mystery_meta"></span>
+                </div>
+            </div>
+            <br>
+            <button class="mystery-btn" onclick="resetMystery()">🎁 NEW BOX</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Modal Controls ---
+    function openModal(mode) {
+        document.getElementById(`modal_${mode}`).style.display = 'block';
+        if (mode === 'wheel') initWheel();
+        if (mode === 'versus') initVersus();
+        if (mode === 'mystery') resetMystery();
+    }
+    function closeModal(mode) {
+        document.getElementById(`modal_${mode}`).style.display = 'none';
+    }
+    document.querySelectorAll('.picker-modal').forEach(m => {
+        m.addEventListener('click', e => { if (e.target === m) m.style.display = 'none'; });
+    });
+
+    // =====================
+    // SLOT MACHINE
+    // =====================
+    // =====================
+    // SPIN THE WHEEL
+    // =====================
+    let wheelGames = [];
+    let wheelAngle = 0;
+    let wheelSpinning = false;
+
+    function initWheel() {
+        wheelGames = [...GAMES].sort(() => Math.random() - 0.5);
+        document.getElementById('wheel_game_count').innerText = `${wheelGames.length} games on the wheel`;
+        drawWheel(0);
+        document.getElementById('wheel_result').style.display = 'none';
+    }
+
+    function drawWheel(rotation) {
+        const canvas = document.getElementById('wheel-canvas');
+        const ctx = canvas.getContext('2d');
+        const cx = canvas.width / 2, cy = canvas.height / 2;
+        const r = cx - 10;
+        const n = wheelGames.length;
+        const arc = (2 * Math.PI) / n;
+        const showLabels = n <= 60;
+        const showShortLabels = n > 60 && n <= 150;
+
+        // Richer color palette for visual variety
+        const colors = [
+            '#1a3a52','#1e4a6a','#163244','#0d2234','#244d6a','#1a3f5c',
+            '#2a1a52','#3a1a6a','#1a2a44','#0d1a34','#3a2a6a','#2a1a5c',
+            '#1a3a2a','#1e4a3a','#163a24','#0d2a14','#244a3a','#1a3a4c',
+        ];
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        wheelGames.forEach((game, i) => {
+            const angle = rotation + i * arc;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, r, angle, angle + arc);
+            ctx.closePath();
+            ctx.fillStyle = colors[i % colors.length];
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(102,192,244,0.3)';
+            ctx.lineWidth = n > 100 ? 0.5 : 1;
+            ctx.stroke();
+
+            if (showLabels) {
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(angle + arc / 2);
+                ctx.textAlign = 'right';
+                ctx.fillStyle = '#c7d5e0';
+                ctx.font = `bold ${n > 30 ? 11 : 13}px Rajdhani, sans-serif`;
+                const maxLen = n > 30 ? 18 : 22;
+                const label = game.name.length > maxLen ? game.name.slice(0, maxLen - 1) + '…' : game.name;
+                ctx.fillText(label, r - 10, 4);
+                ctx.restore();
+            } else if (showShortLabels) {
+                // Just show a colored slice, no text — too small to read
+                // Add a subtle brightness alternation
+            }
+        });
+
+        // Outer ring
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+        ctx.strokeStyle = '#c47af5';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Center circle
+        ctx.beginPath();
+        ctx.arc(cx, cy, 32, 0, 2 * Math.PI);
+        ctx.fillStyle = '#0a1520';
+        ctx.fill();
+        ctx.strokeStyle = '#c47af5';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#c47af5';
+        ctx.font = 'bold 18px Rajdhani, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('🎡', cx, cy + 6);
+    }
+
+    function spinWheel() {
+        if (wheelSpinning) return;
+        wheelSpinning = true;
+        const btn = document.getElementById('wheel_btn');
+        btn.disabled = true;
+        document.getElementById('wheel_result').style.display = 'none';
+
+        const extraSpins = (5 + Math.floor(Math.random() * 5)) * 2 * Math.PI;
+        const n = wheelGames.length;
+        const arc = (2 * Math.PI) / n;
+        const targetSlice = Math.floor(Math.random() * n);
+        const targetAngle = extraSpins + (2 * Math.PI - targetSlice * arc - arc / 2);
+
+        const duration = 4000;
+        const start = performance.now();
+        const startAngle = wheelAngle;
+
+        function animate(now) {
+            const elapsed = now - start;
+            const t = Math.min(elapsed / duration, 1);
+            const ease = 1 - Math.pow(1 - t, 4);
+            wheelAngle = startAngle + targetAngle * ease;
+            drawWheel(wheelAngle);
+
+            if (t < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                wheelAngle = startAngle + targetAngle;
+                wheelSpinning = false;
+                btn.disabled = false;
+                const winner = wheelGames[targetSlice];
+                document.getElementById('wheel_result_img').src = winner.img;
+                document.getElementById('wheel_result_name').innerText = winner.name;
+                document.getElementById('wheel_result_meta').innerText = `⏱ ${winner.hltb ? winner.hltb + 'h' : '--'} · Played: ${winner.playtime}h`;
+                document.getElementById('wheel_result').style.display = 'block';
+            }
+        }
+        requestAnimationFrame(animate);
+    }
+
+    // =====================
+    // VERSUS MODE
+    // =====================
+    let versusPool = [];
+    let versusWinners = [];
+    let versusCurrentA = null, versusCurrentB = null;
+    let versusRound = 0;
+    let versusPicked = false;
+
+    function initVersus() {
+        versusPool = [...GAMES].sort(() => Math.random() - 0.5).slice(0, Math.min(16, GAMES.length));
+        // Pad to even number
+        if (versusPool.length % 2 !== 0) versusPool.pop();
+        versusWinners = [];
+        versusRound = 1;
+        versusPicked = false;
+        document.getElementById('versus_result').innerText = '';
+        document.getElementById('versus_next').style.display = 'none';
+        document.getElementById('versus_subtitle').innerText = 'Click the game you\'d rather play.';
+        nextVersus();
+    }
+
+    function nextVersus() {
+        document.getElementById('versus_next').style.display = 'none';
+        document.getElementById('versus_result').innerText = '';
+        versusPicked = false;
+
+        if (versusPool.length === 0 && versusWinners.length === 1) {
+            showVersusWinner(versusWinners[0]);
+            return;
+        }
+
+        if (versusPool.length === 0) {
+            versusPool = versusWinners;
+            if (versusPool.length % 2 !== 0) versusPool.pop();
+            versusWinners = [];
+            versusRound++;
+        }
+
+        if (versusPool.length === 1) {
+            showVersusWinner(versusPool[0]);
+            return;
+        }
+
+        versusCurrentA = versusPool.pop();
+        versusCurrentB = versusPool.pop();
+        const matchesLeft = Math.floor(versusPool.length / 2) + 1;
+        document.getElementById('versus_subtitle').innerText = `Round ${versusRound} — ${matchesLeft} match${matchesLeft !== 1 ? 'es' : ''} remaining this round`;
+        renderVersus(versusCurrentA, versusCurrentB);
+    }
+
+    function renderVersus(a, b) {
+        document.getElementById('versus_arena').innerHTML = `
+            <div class="versus-card" id="vcard_${a.appid}" onclick="pickVersus(${a.appid})">
+                <img src="${a.img}" alt="">
+                <div class="versus-card-info">
+                    <h4>${a.name}</h4>
+                    <span>⏱ ${a.hltb ? a.hltb + 'h' : '--'} &nbsp;|&nbsp; Played: ${a.playtime}h</span>
+                </div>
+            </div>
+            <div class="versus-vs">VS</div>
+            <div class="versus-card" id="vcard_${b.appid}" onclick="pickVersus(${b.appid})">
+                <img src="${b.img}" alt="">
+                <div class="versus-card-info">
+                    <h4>${b.name}</h4>
+                    <span>⏱ ${b.hltb ? b.hltb + 'h' : '--'} &nbsp;|&nbsp; Played: ${b.playtime}h</span>
+                </div>
+            </div>`;
+    }
+
+    function pickVersus(appid) {
+        if (versusPicked) return; // prevent double click
+        versusPicked = true;
+
+        // Disable both cards visually
+        document.querySelectorAll('.versus-card').forEach(c => {
+            c.style.pointerEvents = 'none';
+            c.style.opacity = '0.5';
+        });
+        const winnerCard = document.getElementById(`vcard_${appid}`);
+        if (winnerCard) { winnerCard.style.opacity = '1'; winnerCard.style.borderColor = '#f5c518'; }
+
+        const winner = [versusCurrentA, versusCurrentB].find(g => g.appid === appid);
+        versusWinners.push(winner);
+        document.getElementById('versus_result').innerText = `✅ ${winner.name} advances!`;
+        document.getElementById('versus_next').style.display = 'block';
+    }
+
+    function showVersusWinner(game) {
+        document.getElementById('versus_arena').innerHTML = `
+            <div style="text-align:center; font-family: 'Rajdhani', sans-serif;">
+                <div style="font-family:'Bebas Neue',sans-serif; font-size:2em; color:#f5c518; letter-spacing:4px; margin-bottom:16px;">🏆 WINNER</div>
+                <img src="${game.img}" style="width:200px; border-radius:8px; margin-bottom:12px;">
+                <h3 style="color:white; margin:0 0 6px 0;">${game.name}</h3>
+                <span style="color:#8ba9bf;">⏱ ${game.hltb ? game.hltb + 'h' : '--'} &nbsp;|&nbsp; Played: ${game.playtime}h</span>
+            </div>`;
+        document.getElementById('versus_subtitle').innerText = 'Your champion has been decided!';
+        document.getElementById('versus_next').innerText = '🔄 PLAY AGAIN';
+        document.getElementById('versus_next').onclick = initVersus;
+        document.getElementById('versus_next').style.display = 'block';
+    }
+
+    // =====================
+    // MYSTERY BOX
+    // =====================
+    let mysteryGame = null;
+    let mysteryRevealed = false;
+
+    function resetMystery() {
+        mysteryGame = randomGame();
+        mysteryRevealed = false;
+        document.getElementById('mystery_box').innerText = '🎁';
+        document.getElementById('mystery_box').classList.remove('shaking');
+        document.getElementById('mystery_reveal').style.display = 'none';
+        document.getElementById('mystery_hint').innerText = 'A game has been chosen. Click the box when you\'re ready to commit!';
+    }
+
+    function revealMystery() {
+        if (mysteryRevealed) return;
+        const box = document.getElementById('mystery_box');
+
+        if (!box.classList.contains('shaking')) {
+            box.classList.add('shaking');
+            document.getElementById('mystery_hint').innerText = 'Are you sure? Click again to reveal...';
+            return;
+        }
+
+        // Reveal
+        mysteryRevealed = true;
+        box.classList.remove('shaking');
+        box.innerText = '🎊';
+
+        document.getElementById('mystery_img').src = mysteryGame.img;
+        document.getElementById('mystery_name').innerText = mysteryGame.name;
+        document.getElementById('mystery_meta').innerText = `⏱ ${mysteryGame.hltb ? mysteryGame.hltb + 'h' : '--'} | Played: ${mysteryGame.playtime}h`;
+        document.getElementById('mystery_reveal').style.display = 'block';
+        document.getElementById('mystery_hint').innerText = 'Your fate has been sealed. Good luck! 🎮';
+    }
+</script>
+
+{% endblock %}

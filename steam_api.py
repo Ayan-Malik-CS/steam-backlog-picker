@@ -2,8 +2,11 @@ import os
 import requests
 from dotenv import load_dotenv
 
-load_dotenv()
-API_KEY = os.getenv('STEAM_API_KEY')
+load_dotenv()  # Still loads .env locally for development
+
+API_KEY = os.environ.get('STEAM_API_KEY')
+if not API_KEY:
+    raise RuntimeError("STEAM_API_KEY environment variable is not set.")
 
 def get_steam_library(steam_id):
     url = "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/"

@@ -1,13 +1,21 @@
 from flask import Flask, render_template, request, jsonify, session, flash, redirect, url_for
 from steam_api import get_steam_library, resolve_vanity_url
-from database import get_active_games, save_games_to_db, get_db_connection, get_ignored_games, is_cache_stale, init_db
+from database import get_active_games, save_games_to_db, get_db_connection, get_ignored_games, get_played_games, is_cache_stale, init_db
 from howlongtobeatpy import HowLongToBeat
 import time
 import threading
 import requests
+import os
+import psycopg2
+import psycopg2.extras
 
 app = Flask(__name__)
-app.secret_key = 'change-this-to-a-random-secret-in-production'
+
+secret_key = os.environ.get('SECRET_KEY')
+if not secret_key:
+    raise RuntimeError("SECRET_KEY environment variable is not set. Generate one with: python -c \"import secrets; print(secrets.token_hex())\"")
+app.secret_key = secret_key
+
 init_db()
 
 # --- THE HOMEPAGE ---
@@ -41,6 +49,7 @@ def show_backlog():
 
     games = get_active_games(steam_id)
     ignored_games = get_ignored_games(steam_id)
+    played_games = get_played_games(steam_id)
 
     # Build sorted list of unique genres across all games
     all_genres = set()
@@ -50,28 +59,73 @@ def show_backlog():
                 all_genres.add(g.strip())
     all_genres = sorted(all_genres)
 
-    return render_template('dashboard.html', games=games, ignored_games=ignored_games, steam_id=steam_id, all_genres=all_genres)
+    return render_template('dashboard.html', games=games, ignored_games=ignored_games, played_games=played_games, steam_id=steam_id, all_genres=all_genres)
+
+def _run_update(sql, params):
+    """Helper for simple UPDATE queries."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(sql, params)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+@app.route('/mark_played/<int:appid>', methods=['POST'])
+def mark_played(appid):
+    steam_id = session.get('steam_id')
+    if not steam_id:
+        return jsonify({"error": "Session expired"}), 401
+    _run_update('UPDATE games SET is_played = TRUE WHERE appid = %s AND steam_id = %s', (appid, steam_id))
+    return jsonify({"success": True}), 200
+
+@app.route('/unmark_played/<int:appid>', methods=['POST'])
+def unmark_played(appid):
+    steam_id = session.get('steam_id')
+    if not steam_id:
+        return jsonify({"error": "Session expired"}), 401
+    _run_update('UPDATE games SET is_played = FALSE WHERE appid = %s AND steam_id = %s', (appid, steam_id))
+    return jsonify({"success": True}), 200
 
 @app.route('/ignore/<int:appid>', methods=['POST'])
 def ignore_game(appid):
     steam_id = session.get('steam_id')
     if not steam_id:
         return jsonify({"error": "Session expired"}), 401
-    conn = get_db_connection()
-    conn.execute('UPDATE games SET is_ignored = 1 WHERE appid = ? AND steam_id = ?', (appid, steam_id))
-    conn.commit()
-    conn.close()
+    _run_update('UPDATE games SET is_ignored = TRUE WHERE appid = %s AND steam_id = %s', (appid, steam_id))
     return jsonify({"success": True}), 200
+
+@app.route('/dashboard')
+def dashboard():
+    steam_id = session.get('steam_id')
+    if not steam_id:
+        return redirect(url_for('index'))
+    games = get_active_games(steam_id)
+    ignored_games = get_ignored_games(steam_id)
+    played_games = get_played_games(steam_id)
+    all_genres = set()
+    for game in games:
+        if game['genres']:
+            for g in game['genres'].split(','):
+                all_genres.add(g.strip())
+    all_genres = sorted(all_genres)
+    return render_template('dashboard.html', games=games, ignored_games=ignored_games, played_games=played_games, steam_id=steam_id, all_genres=all_genres)
+
+# --- THE PICKER MENU ---
+@app.route('/picker')
+def picker():
+    steam_id = session.get('steam_id')
+    if not steam_id:
+        flash("Please load your backlog first.")
+        return redirect(url_for('index'))
+    games = get_active_games(steam_id)
+    return render_template('picker.html', games=games)
 
 @app.route('/unignore/<int:appid>', methods=['POST'])
 def unignore_game(appid):
     steam_id = session.get('steam_id')
     if not steam_id:
         return jsonify({"error": "Session expired"}), 401
-    conn = get_db_connection()
-    conn.execute('UPDATE games SET is_ignored = 0 WHERE appid = ? AND steam_id = ?', (appid, steam_id))
-    conn.commit()
-    conn.close()
+    _run_update('UPDATE games SET is_ignored = FALSE WHERE appid = %s AND steam_id = %s', (appid, steam_id))
     return jsonify({"success": True}), 200
 
 sync_status = {"running": False, "updated": 0, "total": 0}
@@ -82,7 +136,10 @@ def run_hltb_sync():
     print("--- Starting HLTB Sync ---")
 
     conn = get_db_connection()
-    games_to_scan = conn.execute('SELECT appid, name FROM games WHERE hltb_hours IS NULL').fetchall()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute('SELECT appid, name FROM games WHERE hltb_hours IS NULL')
+    games_to_scan = cur.fetchall()
+    cur.close()
     conn.close()
 
     sync_status["total"] = len(games_to_scan)
@@ -106,10 +163,7 @@ def run_hltb_sync():
                     hours = getattr(best_match, 'gameplay_main', -1)
 
                 if hours > 0:
-                    conn = get_db_connection()
-                    conn.execute('UPDATE games SET hltb_hours = ? WHERE appid = ?', (hours, game['appid']))
-                    conn.commit()
-                    conn.close()
+                    _run_update('UPDATE games SET hltb_hours = %s WHERE appid = %s', (hours, game['appid']))
                     updated_count += 1
                     sync_status["updated"] = updated_count
                     print(f"  [SUCCESS] Found {hours} hours for {name}")
@@ -138,7 +192,24 @@ def sync_hltb():
 def get_sync_status():
     return jsonify(sync_status)
 
-free_sync_status = {"running": False, "updated": 0, "total": 0}
+def fetch_steam_store(appid, filters='basic', retries=3):
+    """Fetch from Steam store API with retry and exponential backoff."""
+    for attempt in range(retries):
+        try:
+            response = requests.get(
+                'https://store.steampowered.com/api/appdetails',
+                params={'appids': appid, 'filters': filters},
+                timeout=10
+            )
+            data = response.json()
+            if data is None:
+                raise ValueError("Null response from Steam store API")
+            return data.get(str(appid), {})
+        except Exception as e:
+            wait = 1.5 * (2 ** attempt)  # 1.5s, 3s, 6s
+            print(f"  [RETRY {attempt + 1}/{retries}] appid {appid}: {e} — waiting {wait}s")
+            time.sleep(wait)
+    return {}
 
 def run_free_sync():
     global free_sync_status
@@ -146,7 +217,10 @@ def run_free_sync():
     print("--- Starting Free Game Sync ---")
 
     conn = get_db_connection()
-    games_to_scan = conn.execute('SELECT DISTINCT appid, name FROM games WHERE is_free = 0').fetchall()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute('SELECT DISTINCT appid, name FROM games WHERE is_free = FALSE')
+    games_to_scan = cur.fetchall()
+    cur.close()
     conn.close()
 
     free_sync_status["total"] = len(games_to_scan)
@@ -157,25 +231,13 @@ def run_free_sync():
     for game in games_to_scan:
         appid = game['appid']
         try:
-            response = requests.get(
-                'https://store.steampowered.com/api/appdetails',
-                params={'appids': appid, 'filters': 'basic'},
-                timeout=10
-            )
-            data = response.json()
-            app_data = data.get(str(appid), {})
-
+            app_data = fetch_steam_store(appid, filters='basic')
             if app_data.get('success') and app_data.get('data', {}).get('is_free'):
-                conn = get_db_connection()
-                conn.execute('UPDATE games SET is_free = 1 WHERE appid = ?', (appid,))
-                conn.commit()
-                conn.close()
+                _run_update('UPDATE games SET is_free = TRUE WHERE appid = %s', (appid,))
                 updated_count += 1
                 free_sync_status["updated"] = updated_count
                 print(f"  [FREE] {game['name']}")
-
-            time.sleep(0.3)
-
+            time.sleep(0.6)
         except Exception as e:
             print(f"  [ERROR] {game['name']}: {str(e)}")
 
@@ -202,7 +264,10 @@ def run_genre_sync():
     print("--- Starting Genre Sync ---")
 
     conn = get_db_connection()
-    games_to_scan = conn.execute('SELECT DISTINCT appid, name FROM games WHERE genres IS NULL').fetchall()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute('SELECT DISTINCT appid, name FROM games WHERE genres IS NULL')
+    games_to_scan = cur.fetchall()
+    cur.close()
     conn.close()
 
     genre_sync_status["total"] = len(games_to_scan)
@@ -213,27 +278,15 @@ def run_genre_sync():
     for game in games_to_scan:
         appid = game['appid']
         try:
-            response = requests.get(
-                'https://store.steampowered.com/api/appdetails',
-                params={'appids': appid, 'filters': 'genres'},
-                timeout=10
-            )
-            data = response.json()
-            app_data = data.get(str(appid), {})
-
+            app_data = fetch_steam_store(appid, filters='genres')
             if app_data.get('success'):
                 genre_list = app_data.get('data', {}).get('genres', [])
                 genres = ','.join(g['description'] for g in genre_list) if genre_list else ''
-                conn = get_db_connection()
-                conn.execute('UPDATE games SET genres = ? WHERE appid = ?', (genres, appid))
-                conn.commit()
-                conn.close()
+                _run_update('UPDATE games SET genres = %s WHERE appid = %s', (genres, appid))
                 updated_count += 1
                 genre_sync_status["updated"] = updated_count
                 print(f"  [OK] {game['name']}: {genres}")
-
-            time.sleep(0.3)
-
+            time.sleep(0.6)
         except Exception as e:
             print(f"  [ERROR] {game['name']}: {str(e)}")
 
