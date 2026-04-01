@@ -392,6 +392,30 @@ def force_refresh():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# --- DEBUG ENDPOINTS (temporary) ---
+@app.route('/debug/reset_hltb', methods=['POST'])
+def debug_reset_hltb():
+    """TEMPORARY: Reset all HLTB times for debugging."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('UPDATE games SET hltb_hours = NULL')
+    count = cur.rowcount
+    conn.commit()
+    cur.close()
+    conn.close()
+    return jsonify({"success": True, "message": f"Reset {count} HLTB entries"}), 200
+
+@app.route('/debug/check_free_games', methods=['GET'])
+def debug_check_free_games():
+    """TEMPORARY: Check how many free games are marked."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('SELECT COUNT(*) as total, SUM(CASE WHEN is_free = TRUE THEN 1 ELSE 0 END) as free_count FROM games')
+    result = cur.fetchone()
+    cur.close()
+    conn.close()
+    return jsonify({"total_games": result[0], "free_games": result[1]}), 200
+
 if __name__ == '__main__':
     # Setting host to 0.0.0.0 makes it accessible on your local network
     # In production (Render), these settings are overridden by gunicorn via Procfile
