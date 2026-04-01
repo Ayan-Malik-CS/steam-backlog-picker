@@ -46,6 +46,8 @@ python app.py
 
 Visit `http://localhost:5000` in your browser.
 
+## Performance Tips
+
 - **First sync can be slow** - HLTB has API rate limits. Be patient!
 - **Filter before picker** - Only games matching your filters go to the picker
 - **Cache your data** - Game data is cached; you can re-sync anytime
