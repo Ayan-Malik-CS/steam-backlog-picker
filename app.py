@@ -141,50 +141,17 @@ def unignore_game(appid):
 sync_status = {"running": False, "updated": 0, "total": 0, "processed": 0}
 free_sync_status = {"running": False, "updated": 0, "total": 0, "processed": 0}
 
-def search_hltb_by_name(game_name, appid=None):
-    """Search HLTB via official API by game name — more comprehensive than appid lookup."""
+def search_hltb_by_appid(appid):
+    """Fetch HLTB data using Steam appid — reliable and direct."""
     try:
-        headers = {
-            'User-Agent': 'Steam Backlog App',
-            'Content-Type': 'application/json'
-        }
-        payload = {
-            'searchType': 'games',
-            'searchTerms': [game_name],
-            'size': 20,
-            'searchPage': 1,
-            'searchOptions': {
-                'games': {'userId': 0, 'platform': '', 'sortCategory': 'popular', 'rangeCategory': 'main', 'rangeTime': {'min': 0, 'max': 0}, 'gameplay': {'perspective': '', 'flow': '', 'genre': ''}, 'modifier': ''},
-                'users': {'sortCategory': 'postcount'},
-                'lists': {'sortCategory': 'follows'},
-                'reviews': {'sortCategory': 'helpfulness'}
-            }
-        }
-
-        response = requests.post(
-            'https://www.howlongtobeat.com/api/search',
-            json=payload,
-            headers=headers,
+        response = requests.get(
+            f'https://hltbapi.codepotatoes.de/steam/{appid}',
             timeout=10
         )
-
         if response.status_code == 200:
             data = response.json()
-            if data.get('data') and len(data['data']) > 0:
-                # Find best match based on name similarity
-                for game in data['data']:
-                    # Prioritize exact matches or very close matches
-                    game_title = game.get('game_name', '').lower()
-                    search_term = game_name.lower()
-                    if search_term in game_title or game_title in search_term:
-                        main_time = game.get('comp_main')
-                        if main_time and main_time > 0:
-                            return {'mainStory': main_time}
-                # If no close match, try first result
-                first = data['data'][0]
-                main_time = first.get('comp_main')
-                if main_time and main_time > 0:
-                    return {'mainStory': main_time}
+            if data and data.get('mainStory') and data['mainStory'] > 0:
+                return data
         return None
     except Exception as e:
         print(f"  [HLTB API ERROR] {e}")
@@ -213,7 +180,7 @@ def run_hltb_sync():
         print(f"Scanning: {name}...")
 
         try:
-            data = search_hltb_by_name(name, appid)
+            data = search_hltb_by_appid(appid)
 
             if data and data.get('mainStory') and data['mainStory'] > 0:
                 hours = round(data['mainStory'], 1)
