@@ -46,34 +46,6 @@ python app.py
 
 Visit `http://localhost:5000` in your browser.
 
-## Deploy to Render (Free)
-
-### Step 1: Set Up PostgreSQL on Render
-
-1. Go to https://dashboard.render.com
-2. Create a free PostgreSQL database
-3. Copy the `DATABASE_URL`
-
-### Step 2: Deploy the App
-
-1. Push your code to GitHub
-2. On Render, create a new "Web Service"
-3. Connect your GitHub repo
-4. Set environment variables:
-   - `STEAM_API_KEY` - Get from https://steamcommunity.com/dev/apikey
-   - `SECRET_KEY` - Generate with: `python -c "import secrets; print(secrets.token_hex(32))"`
-   - `DATABASE_URL` - From your Render PostgreSQL database
-   - `FLASK_ENV` - Set to `production`
-
-5. Deploy!
-
-### Getting a Steam API Key
-
-1. Go to https://steamcommunity.com/dev/apikey
-2. Accept the agreement
-3. Enter any domain (e.g., `steambacklog.render.com`)
-4. Copy the API key to your `.env` or Render environment variables
-
 ## Performance Tips
 
 - **First sync can be slow** - HLTB has API rate limits. Be patient!
@@ -105,10 +77,6 @@ Know someone with decision paralysis in their Steam library? Share it on:
 - **Frontend**: Vanilla JavaScript, HTML5 Canvas
 - **APIs**: Steam API, HowLongToBeat GraphQL
 - **Hosting**: Render.com
-
-## License
-
-MIT - Feel free to fork and modify!
 
 ## Support
 
