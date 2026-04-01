@@ -15,7 +15,13 @@ if not secret_key:
     raise RuntimeError("SECRET_KEY environment variable is not set. Generate one with: python -c \"import secrets; print(secrets.token_hex())\"")
 app.secret_key = secret_key
 
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print(f"⚠️ WARNING: Database initialization failed: {e}")
+    print("The app will try to continue, but database operations may fail.")
+    import traceback
+    traceback.print_exc()
 
 # --- THE HOMEPAGE ---
 @app.route('/')

@@ -19,13 +19,24 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cur = conn.cursor()
-    with open('schema.sql') as f:
-        cur.execute(f.read())
+
+    # Get absolute path to schema.sql
+    import os
+    schema_path = os.path.join(os.path.dirname(__file__), 'schema.sql')
+
+    try:
+        with open(schema_path) as f:
+            cur.execute(f.read())
+        print("✓ Database schema initialized")
+    except FileNotFoundError:
+        print(f"ERROR: schema.sql not found at {schema_path}")
+        conn.close()
+        return
 
     # Add missing column if it doesn't exist (for existing databases)
     try:
         cur.execute('ALTER TABLE sync_metadata ADD COLUMN library_sync_time TIMESTAMP')
-        print("Added library_sync_time column to sync_metadata")
+        print("✓ Added library_sync_time column to sync_metadata")
     except Exception as e:
         if 'already exists' in str(e).lower():
             pass  # Column already exists, no action needed
