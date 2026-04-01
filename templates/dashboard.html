@@ -166,11 +166,11 @@
 
     <div id="game_container" style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
         {% for game in games %}
-            <div class="game-card" 
-                 id="game-{{ game.appid }}" 
-                 data-playtime="{{ (game.playtime_forever / 60) | round(2) }}" 
+            <div class="game-card"
+                 id="game-{{ game.appid }}"
+                 data-playtime="{{ (game.playtime_forever / 60) | round(2) }}"
                  data-hltb="{{ game.hltb_hours or 0 }}"
-                 data-free="{{ game.is_free }}"
+                 data-free="{{ 1 if game.is_free else 0 }}"
                  data-genres="{{ game.genres or '' }}"
                  style="background: #2a475e; padding: 0; border-radius: 8px; width: 250px; border: 1px solid #333; overflow: hidden; transition: transform 0.2s;">
                 
@@ -219,7 +219,7 @@
                 <p style="color: #888; margin-top: 0;">These games are hidden from your backlog.</p>
                 <div id="restoration_list" style="display: flex; flex-wrap: wrap; gap: 20px;">
                     {% for game in ignored_games %}
-                        <div class="game-card" id="game-{{ game.appid }}" data-playtime="{{ (game.playtime_forever / 60) | round(2) }}" data-hltb="{{ game.hltb_hours or 0 }}" data-free="{{ game.is_free }}" style="background: #2a475e; width: 200px; border-radius: 8px; overflow: hidden; opacity: 0.8;">
+                        <div class="game-card" id="game-{{ game.appid }}" data-playtime="{{ (game.playtime_forever / 60) | round(2) }}" data-hltb="{{ game.hltb_hours or 0 }}" data-free="{{ 1 if game.is_free else 0 }}" style="background: #2a475e; width: 200px; border-radius: 8px; overflow: hidden; opacity: 0.8;">
                             <img src="https://cdn.akamai.steamstatic.com/steam/apps/{{ game.appid }}/header.jpg" style="width: 100%;">
                             <div style="padding: 10px;">
                                 <h4 style="margin: 0; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ game.name }}</h4>
