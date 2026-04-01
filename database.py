@@ -26,24 +26,38 @@ def init_db():
 
     try:
         with open(schema_path) as f:
-            cur.execute(f.read())
-        print("✓ Database schema initialized")
+            schema_content = f.read()
+
+        # Split by semicolon and execute each statement
+        statements = [stmt.strip() for stmt in schema_content.split(';') if stmt.strip()]
+
+        for i, statement in enumerate(statements):
+            print(f"  Executing schema statement {i+1}/{len(statements)}...")
+            cur.execute(statement)
+
+        conn.commit()
+        print("✓ Database schema initialized successfully")
     except FileNotFoundError:
         print(f"ERROR: schema.sql not found at {schema_path}")
         conn.close()
-        return
+        raise
+    except Exception as e:
+        print(f"ERROR during schema initialization: {e}")
+        conn.rollback()
+        conn.close()
+        raise
 
-    # Add missing column if it doesn't exist (for existing databases)
+    # Add library_sync_time column if it doesn't exist
     try:
         cur.execute('ALTER TABLE sync_metadata ADD COLUMN library_sync_time TIMESTAMP')
-        print("✓ Added library_sync_time column to sync_metadata")
+        conn.commit()
+        print("✓ Added library_sync_time column")
     except Exception as e:
-        if 'already exists' in str(e).lower():
+        if 'already exists' in str(e).lower() or 'duplicate' in str(e).lower():
             pass  # Column already exists, no action needed
         else:
-            print(f"Note: {e}")
+            print(f"Warning during column creation: {e}")
 
-    conn.commit()
     cur.close()
     conn.close()
 
