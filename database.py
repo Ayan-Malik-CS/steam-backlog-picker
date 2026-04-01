@@ -21,6 +21,17 @@ def init_db():
     cur = conn.cursor()
     with open('schema.sql') as f:
         cur.execute(f.read())
+
+    # Add missing column if it doesn't exist (for existing databases)
+    try:
+        cur.execute('ALTER TABLE sync_metadata ADD COLUMN library_sync_time TIMESTAMP')
+        print("Added library_sync_time column to sync_metadata")
+    except Exception as e:
+        if 'already exists' in str(e).lower():
+            pass  # Column already exists, no action needed
+        else:
+            print(f"Note: {e}")
+
     conn.commit()
     cur.close()
     conn.close()
@@ -45,7 +56,7 @@ def save_games_to_db(steam_id, games_list):
             game['name'],
             game['playtime_forever'],
             game.get('img_icon_url', ''),
-            1 if game.get('is_free') else 0,
+            bool(game.get('is_free')),
             now
         ))
     conn.commit()
@@ -83,7 +94,7 @@ def _fetch_all(query, params):
 
 def get_active_games(steam_id):
     return _fetch_all(
-        'SELECT * FROM games WHERE steam_id = %s AND is_ignored = 0 AND is_played = 0',
+        'SELECT * FROM games WHERE steam_id = %s AND is_ignored = FALSE AND is_played = FALSE',
         (steam_id,)
     )
 
@@ -95,12 +106,42 @@ def get_cached_games(steam_id):
 
 def get_ignored_games(steam_id):
     return _fetch_all(
-        'SELECT * FROM games WHERE steam_id = %s AND is_ignored = 1',
+        'SELECT * FROM games WHERE steam_id = %s AND is_ignored = TRUE',
         (steam_id,)
     )
 
 def get_played_games(steam_id):
     return _fetch_all(
-        'SELECT * FROM games WHERE steam_id = %s AND is_played = 1',
+        'SELECT * FROM games WHERE steam_id = %s AND is_played = TRUE',
         (steam_id,)
     )
+
+def get_sync_metadata(steam_id=None):
+    """Get last sync times (global, not per-user)."""
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute(
+        'SELECT hltb_sync_time, free_sync_time, genre_sync_time, library_sync_time FROM sync_metadata WHERE key = %s',
+        ('global',)
+    )
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if row:
+        return row
+    return {'hltb_sync_time': None, 'free_sync_time': None, 'genre_sync_time': None, 'library_sync_time': None}
+
+def update_sync_time(sync_type):
+    """Update the last sync time for a given sync type (hltb, free, genre)."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    col = f"{sync_type}_sync_time"
+    cur.execute(
+        f'INSERT INTO sync_metadata (key, {col}) VALUES (%s, %s) '
+        f'ON CONFLICT (key) DO UPDATE SET {col} = EXCLUDED.{col}',
+        ('global', datetime.utcnow())
+    )
+    conn.commit()
+    cur.close()
+    conn.close()

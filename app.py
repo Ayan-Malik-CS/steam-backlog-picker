@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, jsonify, session, flash, redirect, url_for
-from steam_api import get_steam_library, resolve_vanity_url
-from database import get_active_games, save_games_to_db, get_db_connection, get_ignored_games, get_played_games, is_cache_stale, init_db
-from howlongtobeatpy import HowLongToBeat
+from steam_api import get_steam_library, resolve_vanity_url, PrivateProfileError
+from database import get_active_games, save_games_to_db, get_db_connection, get_ignored_games, get_played_games, is_cache_stale, init_db, get_sync_metadata, update_sync_time
 import time
 import threading
 import requests
@@ -43,6 +42,8 @@ def show_backlog():
         try:
             steam_games = get_steam_library(steam_id)
             save_games_to_db(steam_id, steam_games)
+        except PrivateProfileError as e:
+            return render_template('private.html', steam_id=e.steam_id)
         except ConnectionError as e:
             flash(str(e))
             return redirect(url_for('index'))
@@ -59,7 +60,9 @@ def show_backlog():
                 all_genres.add(g.strip())
     all_genres = sorted(all_genres)
 
-    return render_template('dashboard.html', games=games, ignored_games=ignored_games, played_games=played_games, steam_id=steam_id, all_genres=all_genres)
+    sync_metadata = get_sync_metadata()
+
+    return render_template('dashboard.html', games=games, ignored_games=ignored_games, played_games=played_games, steam_id=steam_id, all_genres=all_genres, sync_metadata=sync_metadata)
 
 def _run_update(sql, params):
     """Helper for simple UPDATE queries."""
@@ -108,7 +111,8 @@ def dashboard():
             for g in game['genres'].split(','):
                 all_genres.add(g.strip())
     all_genres = sorted(all_genres)
-    return render_template('dashboard.html', games=games, ignored_games=ignored_games, played_games=played_games, steam_id=steam_id, all_genres=all_genres)
+    sync_metadata = get_sync_metadata()
+    return render_template('dashboard.html', games=games, ignored_games=ignored_games, played_games=played_games, steam_id=steam_id, all_genres=all_genres, sync_metadata=sync_metadata)
 
 # --- THE PICKER MENU ---
 @app.route('/picker')
@@ -128,11 +132,61 @@ def unignore_game(appid):
     _run_update('UPDATE games SET is_ignored = FALSE WHERE appid = %s AND steam_id = %s', (appid, steam_id))
     return jsonify({"success": True}), 200
 
-sync_status = {"running": False, "updated": 0, "total": 0}
+sync_status = {"running": False, "updated": 0, "total": 0, "processed": 0}
+free_sync_status = {"running": False, "updated": 0, "total": 0, "processed": 0}
+
+def search_hltb_by_name(game_name, appid=None):
+    """Search HLTB via official API by game name — more comprehensive than appid lookup."""
+    try:
+        headers = {
+            'User-Agent': 'Steam Backlog App',
+            'Content-Type': 'application/json'
+        }
+        payload = {
+            'searchType': 'games',
+            'searchTerms': [game_name],
+            'size': 20,
+            'searchPage': 1,
+            'searchOptions': {
+                'games': {'userId': 0, 'platform': '', 'sortCategory': 'popular', 'rangeCategory': 'main', 'rangeTime': {'min': 0, 'max': 0}, 'gameplay': {'perspective': '', 'flow': '', 'genre': ''}, 'modifier': ''},
+                'users': {'sortCategory': 'postcount'},
+                'lists': {'sortCategory': 'follows'},
+                'reviews': {'sortCategory': 'helpfulness'}
+            }
+        }
+
+        response = requests.post(
+            'https://www.howlongtobeat.com/api/search',
+            json=payload,
+            headers=headers,
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('data') and len(data['data']) > 0:
+                # Find best match based on name similarity
+                for game in data['data']:
+                    # Prioritize exact matches or very close matches
+                    game_title = game.get('game_name', '').lower()
+                    search_term = game_name.lower()
+                    if search_term in game_title or game_title in search_term:
+                        main_time = game.get('comp_main')
+                        if main_time and main_time > 0:
+                            return {'mainStory': main_time}
+                # If no close match, try first result
+                first = data['data'][0]
+                main_time = first.get('comp_main')
+                if main_time and main_time > 0:
+                    return {'mainStory': main_time}
+        return None
+    except Exception as e:
+        print(f"  [HLTB API ERROR] {e}")
+        return None
 
 def run_hltb_sync():
     global sync_status
-    sync_status = {"running": True, "updated": 0, "total": 0}
+    sync_status = {"running": True, "updated": 0, "total": 0, "processed": 0}
     print("--- Starting HLTB Sync ---")
 
     conn = get_db_connection()
@@ -145,40 +199,39 @@ def run_hltb_sync():
     sync_status["total"] = len(games_to_scan)
     print(f"Found {len(games_to_scan)} games to scan.")
 
-    hltb = HowLongToBeat()
     updated_count = 0
 
     for game in games_to_scan:
+        appid = game['appid']
         name = game['name']
         print(f"Scanning: {name}...")
 
         try:
-            results = hltb.search(name, similarity_case_sensitive=False)
+            data = search_hltb_by_name(name, appid)
 
-            if results and len(results) > 0:
-                best_match = max(results, key=lambda element: element.similarity)
-
-                hours = getattr(best_match, 'main_story', -1)
-                if hours <= 0:
-                    hours = getattr(best_match, 'gameplay_main', -1)
-
-                if hours > 0:
-                    _run_update('UPDATE games SET hltb_hours = %s WHERE appid = %s', (hours, game['appid']))
-                    updated_count += 1
-                    sync_status["updated"] = updated_count
-                    print(f"  [SUCCESS] Found {hours} hours for {name}")
-                else:
-                    print(f"  [SKIP] No time data found for {name}")
+            if data and data.get('mainStory') and data['mainStory'] > 0:
+                hours = round(data['mainStory'], 1)
+                _run_update('UPDATE games SET hltb_hours = %s WHERE appid = %s', (hours, appid))
+                updated_count += 1
+                sync_status["updated"] = updated_count
+                print(f"  [SUCCESS] {name}: {hours}h")
+            elif data:
+                print(f"  [SKIP] No main story time for {name}")
             else:
-                print(f"  [NOT FOUND] No results on HLTB for {name}")
+                print(f"  [NOT FOUND] No HLTB data for {name}")
 
-            time.sleep(0.5)
+            sync_status["processed"] += 1
+            time.sleep(0.3)
 
         except Exception as e:
+            import traceback
             print(f"  [ERROR] Failed on {name}: {str(e)}")
+            traceback.print_exc()
+            sync_status["processed"] += 1
 
     sync_status["running"] = False
     print(f"--- Sync Complete. Updated {updated_count} games. ---")
+    update_sync_time('hltb')
 
 @app.route('/sync_hltb', methods=['POST'])
 def sync_hltb():
@@ -213,7 +266,7 @@ def fetch_steam_store(appid, filters='basic', retries=3):
 
 def run_free_sync():
     global free_sync_status
-    free_sync_status = {"running": True, "updated": 0, "total": 0}
+    free_sync_status = {"running": True, "updated": 0, "total": 0, "processed": 0}
     print("--- Starting Free Game Sync ---")
 
     conn = get_db_connection()
@@ -237,12 +290,15 @@ def run_free_sync():
                 updated_count += 1
                 free_sync_status["updated"] = updated_count
                 print(f"  [FREE] {game['name']}")
+            free_sync_status["processed"] += 1
             time.sleep(0.6)
         except Exception as e:
             print(f"  [ERROR] {game['name']}: {str(e)}")
+            free_sync_status["processed"] += 1
 
     free_sync_status["running"] = False
     print(f"--- Free Sync Complete. Found {updated_count} free games. ---")
+    update_sync_time('free')
 
 @app.route('/sync_free', methods=['POST'])
 def sync_free():
@@ -260,7 +316,7 @@ genre_sync_status = {"running": False, "updated": 0, "total": 0}
 
 def run_genre_sync():
     global genre_sync_status
-    genre_sync_status = {"running": True, "updated": 0, "total": 0}
+    genre_sync_status = {"running": True, "updated": 0, "total": 0, "processed": 0}
     print("--- Starting Genre Sync ---")
 
     conn = get_db_connection()
@@ -286,12 +342,15 @@ def run_genre_sync():
                 updated_count += 1
                 genre_sync_status["updated"] = updated_count
                 print(f"  [OK] {game['name']}: {genres}")
+            genre_sync_status["processed"] += 1
             time.sleep(0.6)
         except Exception as e:
             print(f"  [ERROR] {game['name']}: {str(e)}")
+            genre_sync_status["processed"] += 1
 
     genre_sync_status["running"] = False
     print(f"--- Genre Sync Complete. Updated {updated_count} games. ---")
+    update_sync_time('genre')
 
 @app.route('/sync_genres', methods=['POST'])
 def sync_genres():
@@ -305,6 +364,31 @@ def sync_genres():
 def get_genre_sync_status():
     return jsonify(genre_sync_status)
 
+@app.route('/sync_metadata', methods=['GET'])
+def get_sync_metadata_endpoint():
+    metadata = get_sync_metadata()
+    return jsonify(metadata)
+
+@app.route('/force_refresh', methods=['POST'])
+def force_refresh():
+    """Force refresh a user's game library from Steam, bypassing cache."""
+    steam_id = session.get('steam_id')
+    if not steam_id:
+        return jsonify({"error": "Session expired"}), 401
+
+    try:
+        steam_games = get_steam_library(steam_id)
+        save_games_to_db(steam_id, steam_games)
+        update_sync_time('library')
+        return jsonify({"success": True, "message": "Library refreshed from Steam"}), 200
+    except PrivateProfileError:
+        return jsonify({"error": "Profile is private"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     # Setting host to 0.0.0.0 makes it accessible on your local network
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # In production (Render), these settings are overridden by gunicorn via Procfile
+    port = int(os.environ.get('PORT', 5000))
+    debug_mode = os.environ.get('FLASK_ENV') == 'development'
+    app.run(debug=debug_mode, host='0.0.0.0', port=port)

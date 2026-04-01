@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width: 600px; margin: 60px auto; background: #1b2838; border: 1px solid #a94442; border-radius: 8px; padding: 32px;">
+    <h2 style="color: #e8a09e; margin-top: 0;">🔒 This profile is private</h2>
+    <p style="color: #c7d5e0;">Steam Backlog Architect needs access to your game library. To make it work, update your Steam privacy settings:</p>
+    <ol style="color: #c7d5e0; line-height: 2;">
+        <li>Open your <a href="https://steamcommunity.com/profiles/{{ steam_id }}/edit/settings" target="_blank" style="color: #66c0f4;">Steam Privacy Settings</a></li>
+        <li>Set <strong>My profile</strong> to <strong>Public</strong></li>
+        <li>Set <strong>Game details</strong> to <strong>Public</strong></li>
+        <li>Uncheck <strong>Always keep my total playtime private</strong></li>
+    </ol>
+    <p style="color: #888; font-size: 0.9em;">After saving your settings, it may take a minute for Steam's API to reflect the change.</p>
+    <a href="/" style="display: inline-block; margin-top: 10px; padding: 10px 24px; background: linear-gradient(to right, #47bfff 5%, #1a44c2 60%); color: white; border-radius: 4px; text-decoration: none; font-weight: bold;">← Try Again</a>
+</div>
+{% endblock %}

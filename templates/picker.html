@@ -148,6 +148,88 @@
         min-height: 36px;
     }
 
+    /* Wheel overlay result */
+    .wheel-result-overlay {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 300;
+        background: rgba(13, 27, 38, 0.95);
+        border: 3px solid #c47af5;
+        border-radius: 16px;
+        padding: 32px;
+        max-width: 500px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(196, 122, 245, 0.4);
+        display: none;
+        animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes popIn {
+        from { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+        to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+
+    .wheel-result-overlay-content {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+    }
+
+    .wheel-result-overlay img {
+        width: 180px;
+        height: 85px;
+        object-fit: cover;
+        border-radius: 8px;
+        flex-shrink: 0;
+    }
+
+    .wheel-result-overlay-info h3 {
+        margin: 0 0 8px 0;
+        font-size: 0.9em;
+        color: #c47af5;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+    }
+
+    .wheel-result-overlay-info .game-name {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 2em;
+        color: white;
+        line-height: 1.1;
+        margin-bottom: 8px;
+        letter-spacing: 2px;
+    }
+
+    .wheel-result-overlay-info .game-meta {
+        font-size: 0.9em;
+        color: #8ba9bf;
+    }
+
+    .wheel-result-overlay-close {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: none;
+        border: none;
+        color: #8ba9bf;
+        font-size: 28px;
+        cursor: pointer;
+        padding: 0;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: background 0.2s, color 0.2s;
+    }
+
+    .wheel-result-overlay-close:hover {
+        background: rgba(196, 122, 245, 0.1);
+        color: white;
+    }
+
     /* Versus */
     .versus-arena {
         display: flex;
@@ -327,17 +409,18 @@
             <canvas id="wheel-canvas" width="700" height="700" style="max-width: 100%;"></canvas>
             <div id="wheel_pointer" style="position: absolute; right: calc(50% - 370px); font-size: 2.5em; line-height: 1; filter: drop-shadow(0 0 6px rgba(195,122,245,0.8));">◀</div>
         </div>
-        <button class="wheel-spin-btn" id="wheel_btn" onclick="spinWheel()">🎡 SPIN THE WHEEL</button>
-        <div id="wheel_result" style="display:none; margin-top: 24px; animation: reveal 0.4s ease-out;">
-            <div style="display: flex; align-items: center; gap: 20px; background: #1e3a50; border: 2px solid #c47af5; border-radius: 12px; padding: 16px; box-shadow: 0 0 30px rgba(196,122,245,0.3);">
-                <img id="wheel_result_img" src="" style="width: 160px; height: 75px; object-fit: cover; border-radius: 8px; flex-shrink: 0;">
-                <div>
-                    <div style="font-family: 'Rajdhani', sans-serif; color: #c47af5; font-size: 0.85em; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;">🎡 You're playing...</div>
-                    <div id="wheel_result_name" style="font-family: 'Bebas Neue', sans-serif; font-size: 1.8em; letter-spacing: 3px; color: white; line-height: 1.1;"></div>
-                    <div id="wheel_result_meta" style="font-family: 'Rajdhani', sans-serif; color: #8ba9bf; font-size: 0.9em; margin-top: 6px;"></div>
+        <div id="wheel_result_overlay" class="wheel-result-overlay">
+            <button class="wheel-result-overlay-close" onclick="closeWheelResult()">&times;</button>
+            <div class="wheel-result-overlay-content">
+                <img id="wheel_result_img" src="" alt="">
+                <div class="wheel-result-overlay-info">
+                    <h3>🎡 You're playing...</h3>
+                    <div id="wheel_result_name" class="game-name"></div>
+                    <div id="wheel_result_meta" class="game-meta"></div>
                 </div>
             </div>
         </div>
+        <button class="wheel-spin-btn" id="wheel_btn" onclick="spinWheel()">🎡 SPIN THE WHEEL</button>
     </div>
 </div>
 
@@ -404,7 +487,7 @@
         wheelGames = [...GAMES].sort(() => Math.random() - 0.5);
         document.getElementById('wheel_game_count').innerText = `${wheelGames.length} games on the wheel`;
         drawWheel(0);
-        document.getElementById('wheel_result').style.display = 'none';
+        document.getElementById('wheel_result_overlay').style.display = 'none';
     }
 
     function drawWheel(rotation) {
@@ -481,7 +564,7 @@
         wheelSpinning = true;
         const btn = document.getElementById('wheel_btn');
         btn.disabled = true;
-        document.getElementById('wheel_result').style.display = 'none';
+        document.getElementById('wheel_result_overlay').style.display = 'none';
 
         const extraSpins = (5 + Math.floor(Math.random() * 5)) * 2 * Math.PI;
         const n = wheelGames.length;
@@ -510,10 +593,14 @@
                 document.getElementById('wheel_result_img').src = winner.img;
                 document.getElementById('wheel_result_name').innerText = winner.name;
                 document.getElementById('wheel_result_meta').innerText = `⏱ ${winner.hltb ? winner.hltb + 'h' : '--'} · Played: ${winner.playtime}h`;
-                document.getElementById('wheel_result').style.display = 'block';
+                document.getElementById('wheel_result_overlay').style.display = 'block';
             }
         }
         requestAnimationFrame(animate);
+    }
+
+    function closeWheelResult() {
+        document.getElementById('wheel_result_overlay').style.display = 'none';
     }
 
     // =====================

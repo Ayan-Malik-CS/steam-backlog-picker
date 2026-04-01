@@ -1,28 +1,111 @@
 {% extends "base.html" %}
 
 {% block content %}
+<style>
+    @media (max-width: 768px) {
+        h2 { font-size: 1.8em; }
+        button, a[onclick] { font-size: 1em !important; padding: 12px 20px !important; margin-right: 8px !important; margin-bottom: 8px; }
+        label { font-size: 0.9em; }
+        input[type="range"], input[type="text"], select { font-size: 0.95em; }
+    }
+
+    @media (max-width: 480px) {
+        h2 { font-size: 1.5em; margin-bottom: 12px; }
+        button, a[onclick] { font-size: 0.9em !important; padding: 10px 16px !important; margin-right: 4px !important; width: 100%; display: block; margin-bottom: 8px; }
+        div[style*="display: flex"] { flex-direction: column; }
+        #game_container { gap: 10px; }
+        .game-card { width: 100%; max-width: none; }
+    }
+
+    #game_container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        justify-content: center;
+    }
+
+    .game-card {
+        background: #2a475e;
+        padding: 0;
+        border-radius: 8px;
+        width: 250px;
+        border: 1px solid #333;
+        overflow: hidden;
+        transition: transform 0.2s;
+    }
+
+    @media (max-width: 768px) {
+        .game-card { width: calc(50% - 10px); }
+    }
+
+    @media (max-width: 480px) {
+        .game-card { width: 100%; }
+    }
+</style>
     <div style="text-align: center; margin-bottom: 40px;">
-        <h2>Can't decide?</h2>
+        <h2>What should I play?</h2>
         <button id="pick_btn" style="font-size: 1.2em; padding: 15px 30px; background: #66c0f4; color: #171a21; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;">🎲 PICK A RANDOM GAME</button>
-        <a onclick="goToPicker()" style="font-size: 1.2em; padding: 15px 30px; background: linear-gradient(to right, #47bfff 5%, #1a44c2 60%); color: white; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; text-decoration: none;">🎮 GAME PICKER MODES</a>
-        
+        <a onclick="goToPicker()" style="font-size: 1.2em; padding: 15px 30px; background: linear-gradient(to right, #47bfff 5%, #1a44c2 60%); color: white; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block;">🎮 GAME PICKER MODES</a>
+
         <div id="featured_pick" style="display: none; margin-top: 20px; border: 2px solid var(--steam-light-blue); background: rgba(102, 192, 244, 0.1); padding: 20px; border-radius: 10px; max-width: 300px; margin-left: auto; margin-right: auto;">
             <h3 style="color: var(--steam-light-blue); margin-top: 0;">How about this one?</h3>
             <div id="pick_display"></div>
         </div>
     </div>
 
+    <div id="empty_backlog" style="display: none; text-align: center; padding: 40px 20px; background: rgba(102, 192, 244, 0.05); border: 2px dashed #66c0f4; border-radius: 8px; margin-bottom: 20px;">
+        <h2 style="margin: 0 0 16px 0;">📭 Backlog is Empty!</h2>
+        <p style="color: #8ba9bf; margin: 0;">All your games are either ignored or marked as played. Go get some games on Steam! 🎮</p>
+    </div>
+
     <div style="background: #1b2838; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #333;">
-        <div style="margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+            <h3 style="margin: 0; font-size: 0.95em; text-transform: uppercase; letter-spacing: 2px; color: #888;">Data Sync</h3>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <button onclick="forceRefresh()" style="background: #4a5c3a; padding: 8px 16px; border: 1px solid #8bc34a; border-radius: 4px; color: #8bc34a; cursor: pointer; font-size: 0.8em; font-weight: bold;">🔄 REFRESH LIBRARY</button>
+                <div id="library_last" style="font-size: 0.75em; color: #666;"></div>
+            </div>
+        </div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+
+            <div style="flex: 1; min-width: 180px; background: #0e1a24; border: 1px solid #4c6b22; border-radius: 6px; padding: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: bold; color: #8bc34a;">⏳ HLTB Times</span>
+                    <span id="hltb_counter" style="font-size: 0.8em; color: #8bc34a; font-weight: bold;">—</span>
+                </div>
+                <button id="sync_btn" onclick="syncHLTB()" style="background: #4c6b22; padding: 6px 14px; width: 100%; font-size: 0.85em;">Sync</button>
+                <div id="hltb_status" style="font-size: 0.75em; color: #8bc34a; margin-top: 6px; min-height: 16px; font-weight: 500;"></div>
+                <div id="hltb_last" style="font-size: 0.7em; color: #666; margin-top: 4px;"></div>
+            </div>
+
+            <div style="flex: 1; min-width: 180px; background: #0e1a24; border: 1px solid #1b6b8a; border-radius: 6px; padding: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: bold; color: #4fc3f7;">🆓 Free Games</span>
+                    <span id="free_counter" style="font-size: 0.8em; color: #4fc3f7; font-weight: bold;">—</span>
+                </div>
+                <button id="free_sync_btn" onclick="syncFree()" style="background: #1b6b8a; padding: 6px 14px; width: 100%; font-size: 0.85em;">Sync</button>
+                <div id="free_status" style="font-size: 0.75em; color: #4fc3f7; margin-top: 6px; min-height: 16px; font-weight: 500;"></div>
+                <div id="free_last" style="font-size: 0.7em; color: #666; margin-top: 4px;"></div>
+            </div>
+
+            <div style="flex: 1; min-width: 180px; background: #0e1a24; border: 1px solid #6b3a8a; border-radius: 6px; padding: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: bold; color: #ce93d8;">🎭 Genres</span>
+                    <span id="genre_counter" style="font-size: 0.8em; color: #ce93d8; font-weight: bold;">—</span>
+                </div>
+                <button id="genre_sync_btn" onclick="syncGenres()" style="background: #6b3a8a; padding: 6px 14px; width: 100%; font-size: 0.85em;">Sync</button>
+                <div id="genre_status" style="font-size: 0.75em; color: #ce93d8; margin-top: 6px; min-height: 16px; font-weight: 500;"></div>
+                <div id="genre_last" style="font-size: 0.7em; color: #666; margin-top: 4px;"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <div style="background: #1b2838; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #333;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
             <h3 style="margin: 0;">
                 Filters — <span id="game_counter" style="color: #66c0f4;">Calculating...</span>
             </h3>
-            <div>
-                <button id="sync_btn" onclick="syncHLTB()" style="background: #4c6b22; padding: 8px 15px;">⏳ Sync HLTB Times</button>
-                <button id="free_sync_btn" onclick="syncFree()" style="background: #1b6b8a; padding: 8px 15px; margin-left: 8px;">🆓 Sync Free Games</button>
-                <button id="genre_sync_btn" onclick="syncGenres()" style="background: #6b3a8a; padding: 8px 15px; margin-left: 8px;">🎭 Sync Genres</button>
-                <span id="sync_status" style="margin-left: 10px; font-size: 0.8em; color: #888;"></span>
-            </div>
         </div>
 
         <label>Backlog Threshold: games played under <strong><span id="range_val">1</span></strong> Hour(s)</label>
@@ -40,6 +123,13 @@
             <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                 <input type="checkbox" id="hide_free" style="width: 16px; height: 16px; accent-color: #66c0f4;">
                 <span>Hide free-to-play games</span>
+            </label>
+        </div>
+
+        <div style="margin-top: 10px;">
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" id="hide_no_hltb" style="width: 16px; height: 16px; accent-color: #66c0f4;">
+                <span>Hide games without playtime data</span>
             </label>
         </div>
 
@@ -160,17 +250,81 @@
     <script>
         const totalGames = document.querySelectorAll('#game_container .game-card').length;
 
+        // Format timestamp for display
+        function formatTime(timestamp) {
+            if (!timestamp) return 'Never';
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000); // seconds
+
+            if (diff < 60) return 'Just now';
+            if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+            if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+            return date.toLocaleDateString();
+        }
+
+        // Show empty backlog message
+        function checkEmptyBacklog() {
+            const visibleCards = Array.from(document.querySelectorAll('#game_container .game-card')).filter(c => c.style.display !== 'none');
+            const emptyMsg = document.getElementById('empty_backlog');
+            if (visibleCards.length === 0 && totalGames === 0) {
+                emptyMsg.style.display = 'block';
+            } else {
+                emptyMsg.style.display = 'none';
+            }
+        }
+
+        // Initialize sync timestamps
+        function initializeSyncTimes() {
+            const syncData = {{ sync_metadata | tojson }};
+            document.getElementById('hltb_last').innerText = `Last: ${formatTime(syncData.hltb_sync_time)}`;
+            document.getElementById('free_last').innerText = `Last: ${formatTime(syncData.free_sync_time)}`;
+            document.getElementById('genre_last').innerText = `Last: ${formatTime(syncData.genre_sync_time)}`;
+            document.getElementById('library_last').innerText = `Library: ${formatTime(syncData.library_sync_time)}`;
+        }
+
+        // Force refresh library from Steam
+        function forceRefresh() {
+            if (!confirm('Refresh your Steam library? This will fetch all your games again.')) return;
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerText = '⏳ Refreshing...';
+
+            fetch('/force_refresh', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('❌ Error: ' + data.error);
+                        btn.disabled = false;
+                        btn.innerText = '🔄 REFRESH LIBRARY';
+                    } else {
+                        document.getElementById('library_last').innerText = `Library: Just now`;
+                        btn.disabled = false;
+                        btn.innerText = '🔄 REFRESH LIBRARY';
+                        alert('✅ Library refreshed! New games will appear below.');
+                        location.reload();
+                    }
+                })
+                .catch(err => {
+                    alert('❌ Error refreshing library');
+                    btn.disabled = false;
+                    btn.innerText = '🔄 REFRESH LIBRARY';
+                });
+        }
+
         // --- Unified Filtering Logic ---
         function filterGames() {
             const liveFilter = document.getElementById('live_filter');
             const hltbFilter = document.getElementById('hltb_filter');
-            
+
             const maxPlayed = parseFloat(liveFilter.value);
             const maxHLTB = parseFloat(hltbFilter.value);
             const hideFree = document.getElementById('hide_free').checked;
+            const hideNoHltb = document.getElementById('hide_no_hltb').checked;
             const searchQuery = document.getElementById('search_filter').value.toLowerCase().trim();
             const checkedGenres = Array.from(document.querySelectorAll('.genre-checkbox:checked')).map(cb => cb.value);
-            
+
             document.getElementById('range_val').innerText = (maxPlayed >= 100) ? "100+" : maxPlayed;
             document.getElementById('hltb_val').innerText = (maxHLTB >= 100) ? "100+" : maxHLTB;
 
@@ -185,11 +339,12 @@
                 const matchesPlayed = (maxPlayed >= 100) || (playedHours <= maxPlayed);
                 const matchesHLTB = (maxHLTB >= 100) || (hltbHours === 0 || hltbHours <= maxHLTB);
                 const matchesFree = !hideFree || !isFree;
+                const matchesNoHltb = !hideNoHltb || (hltbHours && hltbHours > 0);
                 const matchesSearch = searchQuery === '' || card.querySelector('h4').innerText.toLowerCase().includes(searchQuery);
                 const cardGenres = (card.getAttribute('data-genres') || '').split(',').map(g => g.trim());
                 const matchesGenre = checkedGenres.length === 0 || checkedGenres.some(g => cardGenres.includes(g));
 
-                if (matchesPlayed && matchesHLTB && matchesFree && matchesSearch && matchesGenre) {
+                if (matchesPlayed && matchesHLTB && matchesFree && matchesNoHltb && matchesSearch && matchesGenre) {
                     card.style.display = "block";
                     visibleCount++;
                 } else {
@@ -198,6 +353,7 @@
             });
 
             document.getElementById('game_counter').innerText = `Showing ${visibleCount} of ${totalGames} games`;
+            checkEmptyBacklog();
         }
 
         // --- Sort Logic Fix ---
@@ -238,6 +394,7 @@
             localStorage.setItem(`${steamId}_hltb_filter`, document.getElementById('hltb_filter').value);
             localStorage.setItem(`${steamId}_search`, document.getElementById('search_filter').value);
             localStorage.setItem(`${steamId}_hide_free`, document.getElementById('hide_free').checked);
+            localStorage.setItem(`${steamId}_hide_no_hltb`, document.getElementById('hide_no_hltb').checked);
             localStorage.setItem(`${steamId}_sort`, document.getElementById('sort_by').value);
             const checkedGenres = Array.from(document.querySelectorAll('.genre-checkbox:checked')).map(cb => cb.value);
             localStorage.setItem(`${steamId}_genres`, JSON.stringify(checkedGenres));
@@ -248,6 +405,7 @@
             const hltbVal = localStorage.getItem(`${steamId}_hltb_filter`);
             const search = localStorage.getItem(`${steamId}_search`);
             const hideFree = localStorage.getItem(`${steamId}_hide_free`);
+            const hideNoHltb = localStorage.getItem(`${steamId}_hide_no_hltb`);
             const sort = localStorage.getItem(`${steamId}_sort`);
             const genres = localStorage.getItem(`${steamId}_genres`);
 
@@ -255,6 +413,7 @@
             if (hltbVal !== null) document.getElementById('hltb_filter').value = hltbVal;
             if (search !== null) document.getElementById('search_filter').value = search;
             if (hideFree !== null) document.getElementById('hide_free').checked = hideFree === 'true';
+            if (hideNoHltb !== null) document.getElementById('hide_no_hltb').checked = hideNoHltb === 'true';
             if (sort !== null) document.getElementById('sort_by').value = sort;
             if (genres !== null) {
                 const saved = JSON.parse(genres);
@@ -266,6 +425,8 @@
 
         // Initialize
         window.onload = function() {
+            initializeSyncTimes();
+            checkEmptyBacklog();
             restoreFilters();
             sortGames();
 
@@ -282,6 +443,7 @@
         document.getElementById('hltb_filter').oninput = function() { filterGames(); saveFilters(); };
         document.getElementById('search_filter').oninput = function() { filterGames(); saveFilters(); };
         document.getElementById('hide_free').onchange = function() { filterGames(); saveFilters(); };
+        document.getElementById('hide_no_hltb').onchange = function() { filterGames(); saveFilters(); };
         document.getElementById('sort_by').onchange = function() { sortGames(); saveFilters(); };
 
         function goToPicker() {
@@ -387,37 +549,54 @@
         // --- HLTB Sync ---
         function syncHLTB() {
             const btn = document.getElementById('sync_btn');
-            const status = document.getElementById('sync_status');
+            const status = document.getElementById('hltb_status');
+            const counter = document.getElementById('hltb_counter');
             btn.disabled = true;
-            status.innerText = "Starting sync...";
+            status.innerText = "Starting...";
+            counter.innerText = "⏳";
 
             fetch('/sync_hltb', { method: 'POST' })
                 .then(res => res.json())
                 .then(data => {
                     if (data.error) {
-                        status.innerText = data.error;
+                        status.innerText = '❌ ' + data.error;
                         btn.disabled = false;
                         return;
                     }
                     pollSyncStatus();
+                })
+                .catch(err => {
+                    status.innerText = '❌ Connection failed';
+                    counter.innerText = '—';
+                    btn.disabled = false;
                 });
         }
 
         function pollSyncStatus() {
-            const status = document.getElementById('sync_status');
+            const status = document.getElementById('hltb_status');
+            const counter = document.getElementById('hltb_counter');
             const btn = document.getElementById('sync_btn');
 
             fetch('/sync_status')
                 .then(res => res.json())
                 .then(data => {
+                    counter.innerText = `${data.processed} / ${data.total}`;
                     if (data.running) {
-                        status.innerText = `Syncing HLTB... ${data.updated} / ${data.total} games`;
+                        status.innerText = 'Syncing...';
                         setTimeout(pollSyncStatus, 2000);
                     } else {
-                        status.innerText = `Done! Updated ${data.updated} games.`;
+                        status.innerText = `✅ Done! Updated ${data.updated} games.`;
                         btn.disabled = false;
-                        setTimeout(() => location.reload(), 1500);
+                        // Update last sync time
+                        setTimeout(() => {
+                            document.getElementById('hltb_last').innerText = `Last: Just now`;
+                        }, 500);
                     }
+                })
+                .catch(err => {
+                    status.innerText = '❌ Sync error';
+                    counter.innerText = '—';
+                    btn.disabled = false;
                 });
         }
 
@@ -435,72 +614,106 @@
         // --- Genre Sync ---
         function syncGenres() {
             const btn = document.getElementById('genre_sync_btn');
-            const status = document.getElementById('sync_status');
+            const status = document.getElementById('genre_status');
+            const counter = document.getElementById('genre_counter');
             btn.disabled = true;
-            status.innerText = "Starting genre sync...";
+            status.innerText = "Starting...";
+            counter.innerText = "⏳";
 
             fetch('/sync_genres', { method: 'POST' })
                 .then(res => res.json())
                 .then(data => {
                     if (data.error) {
-                        status.innerText = data.error;
+                        status.innerText = '❌ ' + data.error;
                         btn.disabled = false;
                         return;
                     }
                     pollGenreSyncStatus();
+                })
+                .catch(err => {
+                    status.innerText = '❌ Connection failed';
+                    counter.innerText = '—';
+                    btn.disabled = false;
                 });
         }
 
         function pollGenreSyncStatus() {
-            const status = document.getElementById('sync_status');
+            const status = document.getElementById('genre_status');
+            const counter = document.getElementById('genre_counter');
             const btn = document.getElementById('genre_sync_btn');
 
             fetch('/genre_sync_status')
                 .then(res => res.json())
                 .then(data => {
+                    counter.innerText = `${data.processed} / ${data.total}`;
                     if (data.running) {
-                        status.innerText = `Fetching genres... ${data.updated} / ${data.total} games`;
+                        status.innerText = 'Fetching...';
                         setTimeout(pollGenreSyncStatus, 2000);
                     } else {
-                        status.innerText = `Done! Fetched genres for ${data.updated} games.`;
+                        status.innerText = `✅ Done! Updated ${data.updated} games.`;
                         btn.disabled = false;
-                        setTimeout(() => location.reload(), 1500);
+                        setTimeout(() => {
+                            document.getElementById('genre_last').innerText = `Last: Just now`;
+                        }, 500);
                     }
+                })
+                .catch(err => {
+                    status.innerText = '❌ Sync error';
+                    counter.innerText = '—';
+                    btn.disabled = false;
                 });
         }
+
+        // --- Free Game Sync ---
         function syncFree() {
             const btn = document.getElementById('free_sync_btn');
-            const status = document.getElementById('sync_status');
+            const status = document.getElementById('free_status');
+            const counter = document.getElementById('free_counter');
             btn.disabled = true;
-            status.innerText = "Starting free game sync...";
+            status.innerText = "Starting...";
+            counter.innerText = "⏳";
 
             fetch('/sync_free', { method: 'POST' })
                 .then(res => res.json())
                 .then(data => {
                     if (data.error) {
-                        status.innerText = data.error;
+                        status.innerText = '❌ ' + data.error;
                         btn.disabled = false;
                         return;
                     }
                     pollFreeSyncStatus();
+                })
+                .catch(err => {
+                    status.innerText = '❌ Connection failed';
+                    counter.innerText = '—';
+                    btn.disabled = false;
                 });
         }
 
         function pollFreeSyncStatus() {
-            const status = document.getElementById('sync_status');
+            const status = document.getElementById('free_status');
+            const counter = document.getElementById('free_counter');
             const btn = document.getElementById('free_sync_btn');
 
             fetch('/free_sync_status')
                 .then(res => res.json())
                 .then(data => {
+                    counter.innerText = `${data.processed} / ${data.total}`;
                     if (data.running) {
-                        status.innerText = `Checking free games... ${data.updated} found so far (${data.total} total)`;
+                        status.innerText = 'Checking...';
                         setTimeout(pollFreeSyncStatus, 2000);
                     } else {
-                        status.innerText = `Done! Found ${data.updated} free games.`;
+                        status.innerText = `✅ Done! Found ${data.updated} free games.`;
                         btn.disabled = false;
-                        setTimeout(() => location.reload(), 1500);
+                        setTimeout(() => {
+                            document.getElementById('free_last').innerText = `Last: Just now`;
+                        }, 500);
                     }
+                })
+                .catch(err => {
+                    status.innerText = '❌ Sync error';
+                    counter.innerText = '—';
+                    btn.disabled = false;
                 });
         }
     </script>

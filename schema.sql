@@ -13,3 +13,11 @@ CREATE TABLE IF NOT EXISTS games (
     genres TEXT,
     UNIQUE (steam_id, appid)
 );
+
+CREATE TABLE IF NOT EXISTS sync_metadata (
+    key TEXT PRIMARY KEY,
+    hltb_sync_time TIMESTAMP,
+    free_sync_time TIMESTAMP,
+    genre_sync_time TIMESTAMP,
+    library_sync_time TIMESTAMP
+);

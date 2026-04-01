@@ -26,9 +26,21 @@ def get_steam_library(steam_id):
     data = response.json()
 
     if 'response' not in data:
-        raise ConnectionError("Steam API returned an unexpected response. The profile may be private.")
+        raise ConnectionError("Steam API returned an unexpected response.")
 
-    return data.get('response', {}).get('games', [])
+    game_data = data['response']
+
+    # Steam returns an empty response object (no 'games' key) for private profiles
+    if 'games' not in game_data:
+        raise PrivateProfileError(steam_id)
+
+    return game_data['games']
+
+
+class PrivateProfileError(Exception):
+    def __init__(self, steam_id):
+        self.steam_id = steam_id
+        super().__init__("Profile is private")
 
 
 def resolve_vanity_url(vanity_name):
