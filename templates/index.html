@@ -1,12 +1,188 @@
 {% extends "base.html" %}
 {% block content %}
-    <div style="text-align: center; margin-top: 50px;">
-        <h3>Enter your Steam ID or Custom URL name:</h3>
-        <form action="/backlog" method="post">
-            <input type="text" name="steam_id_input" placeholder="e.g. GabeLoganNewell" required 
-                   style="width: 300px; padding: 12px; font-size: 1.1em;">
-            <br><br>
-            <button type="submit">Analyze My Library</button>
+<style>
+    .info-section {
+        background: #1b2838;
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        color: #c7d5e0;
+        line-height: 1.6;
+    }
+    .info-section h3 {
+        color: #66c0f4;
+        margin-top: 0;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .info-section ul {
+        margin: 10px 0;
+        padding-left: 20px;
+    }
+    .info-section li {
+        margin: 8px 0;
+    }
+    .bug-form {
+        background: #0e1a24;
+        border: 1px solid #4c6b22;
+        border-radius: 8px;
+        padding: 16px;
+        margin-top: 12px;
+    }
+    .share-buttons {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+    }
+    .share-btn {
+        padding: 8px 16px;
+        border: 1px solid #66c0f4;
+        background: transparent;
+        color: #66c0f4;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9em;
+        transition: all 0.2s;
+    }
+    .share-btn:hover {
+        background: #66c0f4;
+        color: #171a21;
+    }
+</style>
+
+<div style="text-align: center; margin-bottom: 40px;">
+    <h3 style="font-size: 1.8em; margin-bottom: 30px;">🎮 What Should I Play?</h3>
+    <form action="/backlog" method="post" style="background: #1b2838; padding: 30px; border-radius: 8px; border: 1px solid #66c0f4; max-width: 500px; margin: 0 auto 30px;">
+        {{ csrf_token() }}
+        <label style="display: block; margin-bottom: 12px; font-size: 0.95em;">Enter your Steam ID or Custom URL:</label>
+        <input type="text" name="steam_id_input" placeholder="e.g. GabeLoganNewell or 76561198885027734" required
+               style="width: 100%; padding: 12px; font-size: 1em; box-sizing: border-box; background: #0e1a24; color: white; border: 1px solid #66c0f4; border-radius: 4px; margin-bottom: 16px;">
+        <button type="submit" style="width: 100%;">Analyze My Library</button>
+    </form>
+</div>
+
+<div class="info-section">
+    <h3>📖 About This Project</h3>
+    <p>
+        <strong>What Should I Play?</strong> is a free tool to help you organize and discover games in your Steam backlog.
+    </p>
+    <ul>
+        <li><strong>Filter by playtime:</strong> Focus on untouched games or games you've already started</li>
+        <li><strong>Sort by length:</strong> See how long games take via HowLongToBeat integration</li>
+        <li><strong>Hide free-to-play:</strong> Filter out F2P games from your collection</li>
+        <li><strong>Game picker modes:</strong> Use Spin the Wheel, Versus Mode, or Mystery Box to pick your next game</li>
+    </ul>
+    <p style="color: #8ba9bf; font-size: 0.95em; margin-top: 16px;">
+        ⚠️ <strong>Note:</strong> This is a solo hobby project deployed for fun with no commercial backing.
+        Expect slow updates and occasional downtime. All features are free and always will be.
+    </p>
+</div>
+
+<div class="info-section">
+    <h3>🔒 Privacy & Data</h3>
+    <ul>
+        <li><strong>Your data is not sold:</strong> We only fetch and store your Steam library locally for this session</li>
+        <li><strong>No tracking:</strong> We use optional Google Analytics to track page views only</li>
+        <li><strong>Session-based:</strong> Each Steam ID has its own independent library view</li>
+        <li><strong>Safe to use:</strong> We never post to your Steam account or modify anything</li>
+    </ul>
+</div>
+
+<div class="info-section">
+    <h3>❓ Troubleshooting</h3>
+    <ul>
+        <li><strong>Profile is private?</strong> Go to Steam Settings → Privacy and set your library to "Public"</li>
+        <li><strong>No HLTB times showing?</strong> Click "Sync" under HLTB Times (may take 1-2 minutes)</li>
+        <li><strong>Free games not detecting?</strong> Click "Sync" under Free Games to scan your library</li>
+        <li><strong>Invalid Steam ID?</strong> Enter your custom URL name (username) or your 17-digit Steam ID</li>
+        <li><strong>Site is slow?</strong> This is a free-tier Render app - it may be sleeping. First request takes 30 seconds to wake up</li>
+    </ul>
+</div>
+
+<div class="info-section">
+    <h3>🐛 Report a Bug</h3>
+    <p style="margin-bottom: 12px;">Found an issue? Let us know!</p>
+    <div class="bug-form">
+        <form id="bug_form" onsubmit="submitBugReport(event)">
+            {{ csrf_token() }}
+            <label style="display: block; margin-bottom: 8px; font-size: 0.9em;">Describe the issue:</label>
+            <textarea id="bug_description" name="bug_description" required
+                      placeholder="What went wrong?"
+                      style="width: 100%; padding: 10px; box-sizing: border-box; background: #0e1a24; color: white; border: 1px solid #666; border-radius: 4px; font-family: monospace; font-size: 0.9em; min-height: 80px; resize: vertical;"></textarea>
+            <button type="submit" style="width: 100%; margin-top: 10px;">📧 Send Bug Report</button>
+            <div id="bug_status" style="margin-top: 8px; text-align: center; font-size: 0.9em;"></div>
         </form>
     </div>
+</div>
+
+<div class="info-section">
+    <h3>📢 Share This Project</h3>
+    <p style="margin-bottom: 16px;">Know someone with a Steam backlog? Share this tool!</p>
+    <div class="share-buttons">
+        <button class="share-btn" onclick="shareReddit()">📱 Share on Reddit</button>
+        <button class="share-btn" onclick="shareDiscord()">💬 Share on Discord</button>
+        <button class="share-btn" onclick="copyLink()">🔗 Copy Link</button>
+    </div>
+    <div id="copy_status" style="margin-top: 12px; font-size: 0.9em; color: #8bc34a; display: none;">
+        ✅ Copied to clipboard!
+    </div>
+</div>
+
+<script>
+    function submitBugReport(event) {
+        event.preventDefault();
+        const description = document.getElementById('bug_description').value;
+        const status = document.getElementById('bug_status');
+
+        fetch('/submit_bug_report', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({bug_description: description})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                status.innerHTML = '✅ Thanks for reporting! We\'ll look into it.';
+                document.getElementById('bug_form').reset();
+                setTimeout(() => {
+                    status.innerHTML = '';
+                }, 3000);
+            } else {
+                status.innerHTML = '❌ Error sending report';
+            }
+        })
+        .catch(err => {
+            status.innerHTML = '❌ Connection error';
+        });
+    }
+
+    function shareReddit() {
+        const url = window.location.origin;
+        const text = "Check out What Should I Play? - A free tool to organize your Steam backlog with game length filters, genre sorting, and fun picker modes!";
+        window.open(`https://reddit.com/submit?url=${url}&title=${encodeURIComponent(text)}`, '_blank');
+    }
+
+    function shareDiscord() {
+        const url = window.location.origin;
+        const text = "What Should I Play? - Organize your Steam backlog with game length filters, genres, and fun picker modes! 🎮";
+        // Copy to clipboard for Discord
+        navigator.clipboard.writeText(`${text}\n${url}`).then(() => {
+            alert('Message copied! Paste it in Discord.');
+        });
+    }
+
+    function copyLink() {
+        const url = window.location.origin;
+        navigator.clipboard.writeText(url).then(() => {
+            const status = document.getElementById('copy_status');
+            status.style.display = 'block';
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 2000);
+        });
+    }
+</script>
+
 {% endblock %}

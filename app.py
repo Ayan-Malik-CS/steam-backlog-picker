@@ -391,6 +391,42 @@ def logout():
     flash("Logged out!")
     return redirect(url_for('index'))
 
+@app.route('/submit_bug_report', methods=['POST'])
+@limiter.limit("5 per hour")
+def submit_bug_report():
+    """Submit a bug report."""
+    try:
+        data = request.get_json()
+        description = data.get('bug_description', '').strip()
+
+        if not description or len(description) < 5:
+            return jsonify({"success": False, "error": "Description too short"}), 400
+
+        # Store bug report in database
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS bug_reports (
+                    id SERIAL PRIMARY KEY,
+                    description TEXT NOT NULL,
+                    submitted_at TIMESTAMP DEFAULT NOW()
+                )
+            ''')
+            cur.execute(
+                'INSERT INTO bug_reports (description) VALUES (%s)',
+                (description,)
+            )
+            conn.commit()
+        finally:
+            cur.close()
+            conn.close()
+
+        return jsonify({"success": True, "message": "Bug report submitted"}), 200
+    except Exception as e:
+        print(f"Error submitting bug report: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 # --- DEBUG ENDPOINTS (temporary) ---
 @app.route('/debug/reset_hltb', methods=['POST'])
 def debug_reset_hltb():
