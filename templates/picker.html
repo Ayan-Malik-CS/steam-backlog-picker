@@ -375,7 +375,7 @@
 <h1 class="picker-heading">Choose Your Fate</h1>
 <p class="picker-sub" id="picker_count">Loading...</p>
 <script>
-    document.getElementById('picker_count').innerText = `${GAMES.length} games in your filtered backlog — pick your poison`;
+    document.getElementById('picker_count').innerText = `${GAMES.length} games in your filtered backlog, pick your poison`;
 </script>
 
 <div class="mode-grid">
@@ -394,7 +394,7 @@
     <div class="mode-card" style="--accent: #f5a623;" onclick="openModal('mystery')">
         <span class="mode-icon">🎁</span>
         <div class="mode-title">Mystery Box</div>
-        <div class="mode-desc">A game is chosen — but hidden. You must commit before the reveal.</div>
+        <div class="mode-desc">A game is chosen, but hidden. You must commit before the reveal.</div>
         <span class="mode-tag">Blind Pick</span>
     </div>
 </div>
@@ -441,7 +441,7 @@
     <div class="picker-modal-inner">
         <button class="modal-close" onclick="closeModal('mystery')">&times;</button>
         <h2 style="font-family: 'Bebas Neue', sans-serif; letter-spacing: 4px; color: #f5a623; margin-top: 0;">🎁 Mystery Box</h2>
-        <p style="color: #8ba9bf; font-family: 'Rajdhani', sans-serif;">A game has been chosen. Commit to playing it — then open the box.</p>
+        <p style="color: #8ba9bf; font-family: 'Rajdhani', sans-serif;">A game has been chosen. Commit to playing it. Then open the box.</p>
         <div class="mystery-box-area">
             <div class="mystery-box-icon" id="mystery_box" onclick="revealMystery()">🎁</div>
             <div class="mystery-hint" id="mystery_hint">Click the box to reveal your game!</div>
@@ -650,7 +650,7 @@
         versusCurrentA = versusPool.pop();
         versusCurrentB = versusPool.pop();
         const matchesLeft = Math.floor(versusPool.length / 2) + 1;
-        document.getElementById('versus_subtitle').innerText = `Round ${versusRound} — ${matchesLeft} match${matchesLeft !== 1 ? 'es' : ''} remaining this round`;
+        document.getElementById('versus_subtitle').innerText = `Round ${versusRound}: ${matchesLeft} match${matchesLeft !== 1 ? 'es' : ''} remaining this round`;
         renderVersus(versusCurrentA, versusCurrentB);
     }
 
