@@ -2,6 +2,8 @@
 
 A fun, interactive web app to help you decide what to play from your Steam backlog.
 
+https://whatshouldiplay.onrender.com/
+
 ## Features
 
 - 🎮 **Load Your Backlog** - Connect with your Steam profile to see all your unplayed games
