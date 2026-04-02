@@ -42,7 +42,10 @@
         .game-card { width: 100%; }
     }
 </style>
-    <div style="text-align: right; margin-bottom: 20px;">
+    <div style="text-align: right; margin-bottom: 20px; display: flex; gap: 10px; justify-content: flex-end; align-items: center; flex-wrap: wrap;">
+        <button onclick="document.getElementById('help_modal').style.display='block'" style="color: #66c0f4; font-size: 0.85em; text-decoration: none; background: #1b2838; padding: 8px 14px; border-radius: 4px; border: 1px solid #66c0f4; cursor: pointer;">
+            ❓ Help & Troubleshooting
+        </button>
         <a href="/logout" style="color: #66c0f4; font-size: 0.85em; text-decoration: none; background: #1b2838; padding: 8px 14px; border-radius: 4px; border: 1px solid #66c0f4; display: inline-block;">
             ← Change User
         </a>
@@ -253,7 +256,60 @@
         </div>
     </div>
 
-    <script>
+    <!-- HELP & TROUBLESHOOTING MODAL -->
+    <div id="help_modal" style="display:none; position: fixed; z-index: 101; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); overflow: auto; animation: fadeIn 0.3s;">
+        <div style="background: #1b2838; margin: 5% auto; padding: 30px; width: 90%; max-width: 700px; border-radius: 10px; border: 1px solid #66c0f4;">
+            <span onclick="document.getElementById('help_modal').style.display='none'" style="float: right; cursor: pointer; font-size: 35px; color: white;">&times;</span>
+            <h2 style="margin-top: 0; color: #66c0f4;">❓ Help & Troubleshooting</h2>
+
+            <div style="color: #c7d5e0; line-height: 1.8;">
+                <h3 style="color: #8bc34a; margin-top: 20px;">Common Issues:</h3>
+
+                <p><strong>❌ "Profile is private"</strong></p>
+                <p style="margin-top: 5px; color: #8ba9bf;">Go to Steam → Settings → Privacy and set your library to "Public"</p>
+
+                <p><strong>❌ No HLTB times showing</strong></p>
+                <p style="margin-top: 5px; color: #8ba9bf;">Click "Sync" under HLTB Times. First sync may take 2-3 minutes. Not all games have data on HowLongToBeat (mainly indie/niche games).</p>
+
+                <p><strong>❌ Free games not detecting</strong></p>
+                <p style="margin-top: 5px; color: #8ba9bf;">Click "Sync" under Free Games. This queries Steam for each game - can be slow on large libraries (100+ games).</p>
+
+                <p><strong>❌ Genres loading slowly</strong></p>
+                <p style="margin-top: 5px; color: #8ba9bf;">Genre sync queries Steam for EACH game. On a 300+ game library, this takes 5-10 minutes. Be patient!</p>
+
+                <p><strong>❌ Invalid Steam ID error</strong></p>
+                <p style="margin-top: 5px; color: #8ba9bf;">Use your Steam username/custom URL (e.g., "GabeLoganNewell") OR your 17-digit Steam ID.</p>
+
+                <p><strong>❌ Site is very slow or not loading</strong></p>
+                <p style="margin-top: 5px; color: #8ba9bf;">⚠️ This is running on <strong>Render's free tier</strong>. Free instances go to sleep after 15 minutes of inactivity. Your first request takes 30+ seconds to wake up. If there's too much traffic, the site may slow down or temporarily stop working. This is a limitation of free hosting.</p>
+
+                <p><strong>✅ How do I hide games without HLTB times?</strong></p>
+                <p style="margin-top: 5px; color: #8ba9bf;">Under Filters, check "Hide games without playtime data". This filters out any game without a recorded HLTB time.</p>
+
+                <p><strong>✅ Can I change my Steam ID?</strong></p>
+                <p style="margin-top: 5px; color: #8ba9bf;">Click "Change User" button to logout and enter a different Steam ID or username.</p>
+
+                <h3 style="color: #ce93d8; margin-top: 30px;">About This Project:</h3>
+                <p style="color: #8ba9bf;">
+                    This is a <strong>free solo hobby project</strong> with <strong>no commercial backing</strong>.
+                    Hosted on Render's free tier, so expect occasional slowdowns during high traffic.
+                    All features are free and always will be. If you find a bug, use the bug report form on the home page!
+                </p>
+
+                <h3 style="color: #4fc3f7; margin-top: 30px;">Need More Help?</h3>
+                <p style="color: #8ba9bf;">Go back to the home page and submit a bug report. Your feedback helps improve the app!</p>
+            </div>
+
+            <button onclick="document.getElementById('help_modal').style.display='none'" style="width: 100%; background: #66c0f4; color: #171a21; padding: 12px; margin-top: 20px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Close</button>
+        </div>
+    </div>
+
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
         const totalGames = document.querySelectorAll('#game_container .game-card').length;
 
         // Format timestamp for display
