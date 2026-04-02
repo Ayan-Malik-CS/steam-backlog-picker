@@ -1,4 +1,7 @@
 from flask import Flask, render_template, request, jsonify, session, flash, redirect, url_for
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect
 from steam_api import get_steam_library, resolve_vanity_url, PrivateProfileError
 from database import get_active_games, save_games_to_db, get_db_connection, get_ignored_games, get_played_games, is_cache_stale, init_db, get_sync_metadata, update_sync_time
 import time
@@ -14,6 +17,25 @@ secret_key = os.environ.get('SECRET_KEY')
 if not secret_key:
     raise RuntimeError("SECRET_KEY environment variable is not set. Generate one with: python -c \"import secrets; print(secrets.token_hex())\"")
 app.secret_key = secret_key
+
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
+
+# Initialize rate limiter
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
+
+# Get Google Analytics tracking ID from environment
+GA_TRACKING_ID = os.environ.get('GA_TRACKING_ID', '')
+
+@app.context_processor
+def inject_ga_id():
+    """Inject GA tracking ID into all templates."""
+    return {'ga_tracking_id': GA_TRACKING_ID}
 
 try:
     init_db()
@@ -207,6 +229,7 @@ def run_hltb_sync():
     update_sync_time('hltb')
 
 @app.route('/sync_hltb', methods=['POST'])
+@limiter.limit("1 per minute")
 def sync_hltb():
     if sync_status.get("running"):
         return jsonify({"error": "Sync already in progress"}), 409
@@ -274,6 +297,7 @@ def run_free_sync():
     update_sync_time('free')
 
 @app.route('/sync_free', methods=['POST'])
+@limiter.limit("1 per minute")
 def sync_free():
     if free_sync_status.get("running"):
         return jsonify({"error": "Sync already in progress"}), 409
@@ -326,6 +350,7 @@ def run_genre_sync():
     update_sync_time('genre')
 
 @app.route('/sync_genres', methods=['POST'])
+@limiter.limit("1 per minute")
 def sync_genres():
     if genre_sync_status.get("running"):
         return jsonify({"error": "Sync already in progress"}), 409
@@ -358,6 +383,13 @@ def force_refresh():
         return jsonify({"error": "Profile is private"}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/logout', methods=['POST', 'GET'])
+def logout():
+    """Log out the current user and return to home."""
+    session.clear()
+    flash("Logged out!")
+    return redirect(url_for('index'))
 
 # --- DEBUG ENDPOINTS (temporary) ---
 @app.route('/debug/reset_hltb', methods=['POST'])
