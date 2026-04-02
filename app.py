@@ -422,10 +422,25 @@ def submit_bug_report():
             cur.close()
             conn.close()
 
+        print(f"[BUG REPORT] {description}")
         return jsonify({"success": True, "message": "Bug report submitted"}), 200
     except Exception as e:
         print(f"Error submitting bug report: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/debug/view_bugs', methods=['GET'])
+def debug_view_bugs():
+    """View all bug reports (temporary debug endpoint)."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute('SELECT id, description, submitted_at FROM bug_reports ORDER BY submitted_at DESC LIMIT 50')
+        bugs = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({"bugs": [{"id": b[0], "description": b[1], "submitted_at": str(b[2])} for b in bugs]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # --- DEBUG ENDPOINTS (temporary) ---
 @app.route('/debug/reset_hltb', methods=['POST'])

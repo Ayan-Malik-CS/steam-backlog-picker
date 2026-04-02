@@ -53,9 +53,8 @@
 </style>
 
 <div style="text-align: center; margin-bottom: 40px;">
-    <h3 style="font-size: 1.8em; margin-bottom: 30px;">🎮 What Should I Play?</h3>
     <form action="/backlog" method="post" style="background: #1b2838; padding: 30px; border-radius: 8px; border: 1px solid #66c0f4; max-width: 500px; margin: 0 auto 30px;">
-        {{ csrf_token() }}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <label style="display: block; margin-bottom: 12px; font-size: 0.95em;">Enter your Steam ID or Custom URL:</label>
         <input type="text" name="steam_id_input" placeholder="e.g. GabeLoganNewell or 76561198885027734" required
                style="width: 100%; padding: 12px; font-size: 1em; box-sizing: border-box; background: #0e1a24; color: white; border: 1px solid #66c0f4; border-radius: 4px; margin-bottom: 16px;">
@@ -94,8 +93,9 @@
     <h3>❓ Troubleshooting</h3>
     <ul>
         <li><strong>Profile is private?</strong> Go to Steam Settings → Privacy and set your library to "Public"</li>
-        <li><strong>No HLTB times showing?</strong> Click "Sync" under HLTB Times (may take 1-2 minutes)</li>
-        <li><strong>Free games not detecting?</strong> Click "Sync" under Free Games to scan your library</li>
+        <li><strong>No HLTB times showing?</strong> Click "Sync" under HLTB Times (may take 2-3 minutes, scans 300+ games)</li>
+        <li><strong>Free games not detecting?</strong> Click "Sync" under Free Games to scan your library (may be slow)</li>
+        <li><strong>Genres loading slowly?</strong> Genre sync queries Steam for each game - this takes time on large libraries</li>
         <li><strong>Invalid Steam ID?</strong> Enter your custom URL name (username) or your 17-digit Steam ID</li>
         <li><strong>Site is slow?</strong> This is a free-tier Render app - it may be sleeping. First request takes 30 seconds to wake up</li>
     </ul>
@@ -103,10 +103,10 @@
 
 <div class="info-section">
     <h3>🐛 Report a Bug</h3>
-    <p style="margin-bottom: 12px;">Found an issue? Let us know!</p>
+    <p style="margin-bottom: 12px;">Found an issue? Let us know! (Bug reports are stored and reviewed)</p>
     <div class="bug-form">
-        <form id="bug_form" onsubmit="submitBugReport(event)">
-            {{ csrf_token() }}
+        <form id="bug_form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <label style="display: block; margin-bottom: 8px; font-size: 0.9em;">Describe the issue:</label>
             <textarea id="bug_description" name="bug_description" required
                       placeholder="What went wrong?"
@@ -131,14 +131,18 @@
 </div>
 
 <script>
-    function submitBugReport(event) {
+    document.getElementById('bug_form').addEventListener('submit', function(event) {
         event.preventDefault();
         const description = document.getElementById('bug_description').value;
         const status = document.getElementById('bug_status');
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
 
         fetch('/submit_bug_report', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
             body: JSON.stringify({bug_description: description})
         })
         .then(r => r.json())
@@ -150,13 +154,14 @@
                     status.innerHTML = '';
                 }, 3000);
             } else {
-                status.innerHTML = '❌ Error sending report';
+                status.innerHTML = '❌ Error: ' + (data.error || 'Unknown error');
             }
         })
         .catch(err => {
-            status.innerHTML = '❌ Connection error';
+            status.innerHTML = '❌ Connection error: ' + err.message;
+            console.error(err);
         });
-    }
+    });
 
     function shareReddit() {
         const url = window.location.origin;
@@ -167,7 +172,6 @@
     function shareDiscord() {
         const url = window.location.origin;
         const text = "What Should I Play? - Organize your Steam backlog with game length filters, genres, and fun picker modes! 🎮";
-        // Copy to clipboard for Discord
         navigator.clipboard.writeText(`${text}\n${url}`).then(() => {
             alert('Message copied! Paste it in Discord.');
         });
